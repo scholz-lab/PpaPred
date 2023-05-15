@@ -3,7 +3,7 @@
 
 #### First steps:
 1. Download git repository:
-`git@github.com:scholz-lab/PpaForagingprediction.git`
+`git@github.com:scholz-lab/PpaPred.git`
 
 2. Install environmnet:
 `conda env create -f requirements.txt -n PpaPred`
