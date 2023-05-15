@@ -53,7 +53,7 @@ pywavelets == 1.4.1
 
 # PpaForagingPrediction/.ipynb_checkpoints/FeedingPrediction-checkpoint.ipynb: 22,317
 # PpaForagingPrediction/FeedingPrediction.ipynb: 14
-scikit-learn == 1.0.0
+scikit-learn == 1.1.0
 
 # PpaForagingPrediction/functions/.ipynb_checkpoints/FeatureEngine-checkpoint.py: 6
 # PpaForagingPrediction/functions/.ipynb_checkpoints/algebra-checkpoint.py: 2
