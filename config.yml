@@ -1,0 +1,19 @@
+settings:
+    'model': './model/ForagingPredictionModel_1-0.pickle'
+    'ASpath': "./model/AugmentSelect_1-0.pickle"
+    'fbfill': 90 #in frames == 3 sec, with fps = 30
+cluster_names:
+    -1: "None"
+    0: ' p. feeding'
+    1: 1
+    2: 2
+    3: 3
+    4: 4
+    5: 'p. biting'
+    6: 'p. biting'
+    7: 7
+    8: 8
+    9: 9
+    
+
+    
