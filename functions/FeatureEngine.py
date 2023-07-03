@@ -4,6 +4,7 @@ import sys
 import pandas as pd
 import json
 from scipy import stats
+import tqdm
 
 import matplotlib.pylab as plt
 
@@ -15,25 +16,28 @@ from functions.io import makedir
 
 ## Settings and load data
 
-def setup(inpath, outpath):
-
+def setup(inpath, outpath, skip_already):
+    engine_done = []
     ins = {}
     outs = {}
-    for dirIn in inpath:
+    for dirIn, dirOut in zip(inpath,outpath):
         in_name = os.path.basename(dirIn)
-        out = makedir(os.path.join(outpath, f"{in_name}_engine"))
-
+        out = makedir(dirOut)
+        if skip_already:
+            engine_done = [f for f in os.listdir(out)]
         for fn in os.listdir(dirIn):
-            if "results" in fn:
-                ins[fn]= os.path.join(dirIn, fn)
-                outs[fn] = out
+            out_fn = os.path.join(out, f"{fn.split('.')[0]}_features.json")
+            if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done:
+                ins[fn] = os.path.join(dirIn, fn)
+                outs[fn] = out_fn
     return ins, outs
 
 
 
 # Aim is to analyse the eigenpharynx of each results file
 def FeatureEngine(data, outs, logger):
-    for fn in data:
+    XYs, CLines = {},{}
+    for fn in tqdm.tqdm(data):
         logger.info(f"\nfeature calculation for {fn}")
         name = fn.split(".")[0]
 
@@ -45,8 +49,8 @@ def FeatureEngine(data, outs, logger):
                 continue
             CLine = proc.prepCL_concat(PG, "Centerline")
         elif 'json' in fn:
-            PG = pd.read_json(data[fn])['Centerline']
-            CLine = np.array([row for row in PG])
+            PG = pd.read_json(data[fn], orient='split')
+            CLine = np.array([row for row in PG['Centerline']])
         CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
 
         #sanity check: inverted?
@@ -111,6 +115,10 @@ def FeatureEngine(data, outs, logger):
         scales = np.linspace(3, 50, 10)
         for col in col_raw_data:
             lowpass_d = wt.lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
+            lowpass_toolarge = PG_new.shape[0]-lowpass_d.shape[0]
+            if lowpass_toolarge < 0:
+                lowpass_d = lowpass_d[:lowpass_toolarge]
+                
             coefficients, frequencies = wt.cwt_signal(lowpass_d, scales)#rec[:-1]
             maxfreq_idx = np.argmax(abs(coefficients), axis=0)
             maxfreq = maxfreq_idx.copy().astype('float')
@@ -129,14 +137,19 @@ def FeatureEngine(data, outs, logger):
         ### Save to specified output  ###############################################################################
         jsnL = json.loads(PG_new.to_json(orient="split"))
         jsnF = json.dumps(jsnL, indent = 4)
-        outs[fn] = os.path.join(outs[fn],f"{name}_features.json")
+        
         with open(outs[fn], "w") as outfile:
             outfile.write(jsnF)
-    return outs
+        XYs[fn] = XY
+        CLines[fn] = CLine
+    return outs, XYs, CLines
 
-def run(inpath, outpath, logger):
+def run(inpath, outpath, logger, return_XYCLine = False, skip_already = False):
     if isinstance(inpath,str):
         inpath = [inpath]
-    ins, outs = setup(inpath, outpath)
-    outs = FeatureEngine(ins, outs, logger)
-    return outs
+    if isinstance(outpath,str):
+        outpath = [outpath]
+    ins, outs = setup(inpath, outpath, skip_already)
+    outs, XYs, CLines = FeatureEngine(ins, outs, logger)
+    if return_XYCLine:
+        return XYs, CLines

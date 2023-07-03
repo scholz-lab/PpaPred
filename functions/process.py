@@ -290,6 +290,62 @@ def onoff_dict(arr_raw, labels = range(-1,4), return_duration=False, return_tran
     else:
         return arr_onoff
     
+def onoff_dict(arr_raw, labels = range(-1,4), return_duration=False, return_transitions = False, return_all = False, treatasone=True):
+
+    if not isinstance(arr_raw, list):
+        arr_raw = [arr_raw]
+
+    arr_onoff = {}
+    arr_transi =  []
+    arr_onset =  []
+    arr_onnext =  []
+    arr_dur =  []
+    total_dur = 0
+    for i,a in enumerate(arr_raw):
+        if isinstance(arr_raw, pd.Series) or isinstance(arr_raw, pd.DataFrame):
+            a = a.values
+        arr_s = a[1:]
+        arr = a[:-1]
+
+        transi = np.append(arr[arr != arr_s], arr[-1])
+        onset = (np.concatenate([[0],np.where([arr != arr_s])[1]+1]))
+        onnext = (np.append(np.array((onset)[1:]), [len(arr)+1]))
+        dur = (onnext)-onset
+        arr_transi.append(transi)
+        arr_onset.append(onset)
+        arr_onnext.append(onnext)
+        arr_dur.append(dur)
+
+        if treatasone:
+            if i > 0:
+                total_dur += arr_onnext[i-1][-1]
+
+        for b in np.unique(a):
+            b_idx = np.where(transi == b)
+            b_onoff = list(zip(onset[b_idx]+total_dur, dur[b_idx]+total_dur))
+            if b in arr_onoff.keys():
+                arr_onoff[b] = arr_onoff[b]+b_onoff
+            else:
+                arr_onoff[b] = b_onoff
+    if treatasone:
+        arr_dur = np.concatenate(arr_dur)
+        arr_transi = np.concatenate(arr_transi)
+        arr_onset = np.concatenate([a+arr_onnext[i-1][-1] if i > 0 else a for i,a in enumerate(arr_onset)])
+        arr_onnext = np.concatenate([a+arr_onnext[i-1][-1] if i > 0 else a for i,a in enumerate(arr_onnext)])
+        # might hav to work here on further, change how arr_onset and arr_onnext are daved
+
+    if return_all == True:
+        return arr_onoff, arr_dur, arr_transi, arr_onset, arr_onnext
+    elif return_transitions == True and return_duration == True:
+        return arr_onoff, arr_dur, arr_transi
+    elif return_duration == True or return_transitions == True:
+        if return_duration == True:
+            return arr_onoff, arr_dur
+        if return_transitions == True:
+            return arr_onoff, arr_transi
+    else:
+        return arr_onoff
+    
 def ffill_bfill(arr, size):
     if isinstance(arr, pd.Series) or isinstance(arr, pd.DataFrame):
         arr = arr.values

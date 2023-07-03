@@ -1,19 +1,53 @@
 settings:
-    'model': './model/ForagingPredictionModel_1-0.pickle'
-    'ASpath': "./model/AugmentSelect_1-0.pickle"
-    'fbfill': 90 #in frames == 3 sec, with fps = 30
+    'model': '/gpfs/soma_fs/scratch/src/boeger/model/ForagingPredictionModel_1-1.pickle'
+    'ASpath': "/gpfs/soma_fs/scratch/src/boeger/model/AugmentSelect_1-1.pickle"
+    'fbfill': 30 #in frames == 3 sec, with fps = 30
+    'fps': 30
+    'skip_already': True
 cluster_names:
-    -1: "None"
-    0: ' p. feeding'
+    -1: -1
+    0: 0
     1: 1
     2: 2
     3: 3
     4: 4
-    5: 'p. biting'
-    6: 'p. biting'
-    7: 7
-    8: 8
-    9: 9
+    5: 5
+    6: 6
+cluster_color: 
+# colormap can be checked here https://coolors.co/dbdbdb-bb0a21-dd3916-ff680a-ff8f1f-b0e68f-0d799d-089bc4-00665c
+# this ordering for achromatopisa visualisation https://coolors.co/dbdbdb-b0e68f-ff8f1f-ff680a-089bc4-dd3916-0d799d-00665c-bb0a21
+    -1: "#DBDBDB"
+    0: '#BB0A21'
+    1: '#DD3916'
+    2: '#FF680A'
+    3: '#FF8F1F'
+    4: '#B0E68F'
+    5: '#0D799D'
+    6: '#089BC4'
+cluster_group_man:
+    -1: "None"
+    0: 'Feeding'
+    1: 'Feeding'
+    2: 'Biting'
+    3: 'Biting'
+    4: '?'
+    5: 'Smelling'
+    6: 'Smelling'
+manual_labels:
+    -1: "None"
+    0: 'Quiescence'
+    1: 'Smelling'
+    2: 'Biting'
+    3: 'Feeding'
+    4: 'Bac_feeding'
+manual_colors:
+# main colors https://coolors.co/dbdbdb-bb0a21-ff680a-0d799d-00665c
+    -1: "k"
+    0: '#DBDBDB'
+    1: '#0D799D'
+    2: '#FF680A'
+    3: '#BB0A21'
+    4: '#00665C'
     
 
     
