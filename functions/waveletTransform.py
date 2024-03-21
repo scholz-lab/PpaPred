@@ -47,7 +47,8 @@ def plot_wavelet(coefficients, frequencies,
     contourlevels = np.log2(levels)
     
     fig, ax = plt.subplots(figsize=(15, 5))
-    im = ax.contourf(time, np.log2(period), np.log2(power), contourlevels, extend='both',cmap=cmap)
+    #im = ax.contourf(time, np.log2(period), np.log2(power), contourlevels, extend='both',cmap=cmap)
+    im = ax.contourf(np.arange(coefficients.shape[1]),np.log2(period), np.log2(power), contourlevels, extend='both',cmap=cmap)
     
     ax.set_title(title, fontsize=20)
     ax.set_ylabel(ylabel, fontsize=18)

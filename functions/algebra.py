@@ -24,24 +24,87 @@ def unitvector_space(xyarray, diffindex=[0,99]):
     return unit_vec, vlen, base
 
 
-def AngleLen (v1, v2, hypotenuse = "v1", over="frames",**args):
+def AngleLen (v1, v2=None, hypotenuse = "v1", over="frames",**args):
     if over == "frames":
         unitfunction = unitvector
     elif over == "space":
         unitfunction = unitvector_space
         
     v1_unit, v1_len, v1_diff = unitfunction(v1,**args)
-    v2_unit, v2_len, v1_diff = unitvector(v2)
+    if not v2 is None:
+        v2_unit, v2_len, v1_diff = unitvector(v2)
+    else:
+        v2_unit, v2_len, v1_diff = v1_unit[1:], v1_len[1:], v1_diff[1:]
+    
     hyp = {"v1":v1_len, "v2":v2_len}
     hyplen = hyp[hypotenuse]
     
     crop = min(len(v1_unit), len(v2_unit))
     #x1, y1, x2, y2 = v1_unit[:crop,0], v1_unit[:crop,1], v2_unit[:crop,0], v2_unit[:crop,1]
     dotProduct = v1_unit[:crop,0]*v2_unit[:crop,0] +v1_unit[:crop,1]*v2_unit[:crop,1]
-    angle = np.arccos(dotProduct) # mod of Vector is 1, so /mod can be left away  #arccos
-    difflen = np.multiply(np.sin(angle[:crop]).flatten(),hyplen[:crop].flatten())
+    arccos = np.arccos(dotProduct) # mod of Vector is 1, so /mod can be left away  #arccos
+    #arcsin = np.arcsin(dotProduct)
     
-    return difflen, angle, v1_diff
+    difflen = np.multiply(np.sin(arccos[:crop]).flatten(),hyplen[:crop].flatten())
+    
+    return difflen, arccos, v1_diff
+
+def AngleLenArcTan (v1, v2=None, hypotenuse = "v1", over="frames",**args):
+    if over == "frames":
+        unitfunction = ak.unitvector
+    elif over == "space":
+        unitfunction = al.unitvector_space
+        
+    v1_unit, v1_len, v1_diff = unitfunction(v1,**args)
+    if not v2 is None:
+        v2_unit, v2_len, v1_diff = al.unitvector(v2)
+    else:
+        v2_unit, v2_len, v1_diff = v1_unit[1:], v1_len[1:], v1_diff[1:]
+    
+    hyp = {"v1":v1_len, "v2":v2_len}
+    hyplen = hyp[hypotenuse]
+    print(v1_unit, v2_unit)
+    crop = min(len(v1_unit), len(v2_unit))
+    #x1, y1, x2, y2 = v1_unit[:crop,0], v1_unit[:crop,1], v2_unit[:crop,0], v2_unit[:crop,1]
+    dotProduct = v1_unit[:crop,0]*v2_unit[:crop,0] +v1_unit[:crop,1]*v2_unit[:crop,1]
+    arctan = np.arctan2(np.cross(v1_unit[:crop],v2_unit[:crop]),dotProduct)
+    #arcsin = np.arcsin(dotProduct)
+    
+    difflen = np.multiply(np.sin(arctan[:crop]).flatten(),hyplen[:crop].flatten())
+    
+    return difflen, arctan, v1_diff
+
+def TotalAbsoluteCurvature(Phi_i, L_i, axis=1):
+    """
+    Calcultes total absolute curvature of discrete curves, given the vector angle by Phi_i and the vector length by L_i
+    """
+    A_i= ((L_i[:,:-1]+L_i[:,1:])/2)
+    k_i = Phi_i.squeeze()/A_i.squeeze()
+    k = np.sum(abs(k_i), axis=axis)
+    return k
+
+'''
+def LineAngle(Cl):
+    """Use centerline points to calculate relative angles.
+    Cl = (Nsamples, 100, 2) array
+    """
+    # vector components for relative vectors
+    vec = np.diff(Cl, axis = 1)
+    # normalize vectors. calculates the length of vectors
+    length = np.linalg.norm(vec, axis = 2).reshape(vec.shape[0],vec.shape[1],1)
+    unit_vec = vec/length
+    # define vectors to calculate angles from: shift
+    v1_unit = unit_vec[:,:-1] # from 0 to forelast
+    v2_unit = unit_vec[:,1:] # from 1 to last
+    # angles
+    dotProduct = v1_unit[:,:,0]*v2_unit[:,:,0] +v1_unit[:,:,1]*v2_unit[:,:,1]
+    crossProduct = np.cross(v1_unit,v2_unit)
+
+    arccos = np.arccos(dotProduct) # mod of Vector is 1, so /mod can be left away  #arccos
+    arcsin = np.arcsin(crossProduct)
+            
+    return length,vec,arccos,arcsin'''
+
 
 def angular_vel_dt(arr, dt=1, fps=30):
     return stats.circmean(np.lib.stride_tricks.sliding_window_view(arr, int(dt*fps)), 
@@ -55,6 +118,17 @@ def angle2vec(nose_unit_frames, nose_unit_space):
     angle_noses = np.arccos(dot_noses) # mod of Vector is 1, so /mod can be left away
     return angle_noses
 
+def plot_angle(ax, pos, angle, length=0.95, acol="C0", **kwargs):
+    vec2 = np.array([np.cos(np.deg2rad(angle)), np.sin(np.deg2rad(angle))])
+    xy = np.c_[[length, 0], [0, 0], vec2*length].T + np.array(pos)
+    ax.plot(*xy.T, color=acol)
+    return AngleAnnotation(pos, xy[0], xy[2], ax=ax, **kwargs)
+
+# encode cos, sin
+def encode_cos(x):
+    return np.cos(x)
+def encode_sin(x):
+    return np.sin(x)
 
 
 ###### from https://matplotlib.org/stable/gallery/text_labels_and_annotations/angle_annotation.html#sphx-glr-gallery-text-labels-and-annotations-angle-annotation-py
@@ -225,8 +299,3 @@ class AngleAnnotation(Arc):
             offs = trans.transform(((X-s/2), 0))[0] * 72
             self.text.set_position([offs*np.cos(angle), offs*np.sin(angle)])
             
-def plot_angle(ax, pos, angle, length=0.95, acol="C0", **kwargs):
-    vec2 = np.array([np.cos(np.deg2rad(angle)), np.sin(np.deg2rad(angle))])
-    xy = np.c_[[length, 0], [0, 0], vec2*length].T + np.array(pos)
-    ax.plot(*xy.T, color=acol)
-    return AngleAnnotation(pos, xy[0], xy[2], ax=ax, **kwargs)

@@ -5,6 +5,7 @@ import pandas as pd
 import logging
 from scipy import ndimage
 from scipy.signal import find_peaks
+from functions.algebra import unitvector, unitvector_space, angle2vec
 
 ### IMPORT ###
 """ will be depricated for json load, work-around for now
@@ -91,78 +92,30 @@ def repro(angs, vlen, forPC = False):
     
     return lstCor
 
-def startEnd_serialise(df, data, fn, col_seri, col_url, replace = "", insert = ""):
-    # serialise labels in df
-        # df: label DataFrame from json
-        # data: worm tracking data, to add serialised labels
-        # fn: filename of tracking data
-        # col_seri: df column to serialise
-        # col_url: df column where path is specified
-    # returns worm data with added columns
-    # use col_url, entails path of data file during labeling, to find name of related data file
-    # for each stored labeling in df
-    if col_url in df.columns:
-        df['filename'] = df[col_url].str.split('/').str[-1].str.slice(9).str.replace(replace, insert) # get rid of path and first 9 digits
-    else:
-        try:
-            nested = [row[col_url] for row in df['data']]
-            df['filename'] = [row.split('/')[-1][9:].replace(replace, insert) for row in nested]
-        except:
-            print(f"correct filename cannot be found in json file: {fn}\nfile may be differently structured than expected") 
-    
-    # look for correct labeling, related to data file, specified by fn
-    for idx, row in df.iterrows():
-        regions  = row[col_seri] # the labels and related data
-        filename = row['filename'] # the file name
-        
-        if filename not in fn:
-            #print(filename, fn)
-            continue
 
-        tdf    = data.copy()
-        labels = pd.DataFrame(data=[['None']]*tdf.shape[0],columns=['behavior'])#index=tdf['time']
-        #last_label = 'None'
-        
-        # if filename correct, proceed with serialisation
-        # use start and end to insert label and bout duration in label DataFrame between range of start and end
-        for rgn in regions:
-            rgn_label = rgn['timeserieslabels'][0] # label
-            if 'start' not in rgn or 'end' not in rgn or type(rgn['end']) != int or type(rgn['start']) != int:
-                continue
-            #labels['label'].iloc[rgn['start']:rgn['end']] = rgn_label
-            labels.loc[rgn['start']:rgn['end'],'behavior'] = rgn_label
-            #labels['duration'].iloc[rgn['start']:rgn['end']] = rgn['end']-rgn['start']
-            #labels.loc[rgn['start']:rgn['end'],'duration'] = rgn['end']-rgn['start']
-            #labels.loc[rgn['start']:rgn['end'],'label prior'] = last_label
-            #last_label = rgn_label
-            
-        # add columns of labels DataFrame to original data
-        #tdf['behavior'] = labels['label'].values
-        #tdf['bout_duration'] = labels['duration'].values
-        #tdf['behavior prior'] = labels['label prior'].values
-        if idx == 0:
-            break
-    
-    return labels
-
-def flip_ifinverted(df):
+def flip_ifinverted(arr, XY):
+    # arr must have shape nframes,nCenterlinePoints, XYpoints
     # sanity check to see if orientation of centerline is coherent between frames
     # using shifted arrays to compare between cuurent frame and next
     # the initial comparison has to be adjusted however, because a inverted frame inverts the boolean value up to the next right-side-up frame
     # corrected boolean array is used to reorientate 
-    
+
     # create shifted arrays to compare between frames
-    tipnow = df[:-1][:,0]
-    dfnext = df[1:]
-    tipnext = dfnext[:,0]
-    tailnext = dfnext[:,-1]
+    tipnow = np.median(arr[:-1,:5],axis=1)
+    tailnow = np.median(arr[:-1,-5:],axis=1)
+    tipnext = np.median(arr[1:,:5],axis=1)
+    tailnext = np.median(arr[1:,-5:],axis=1)
     
     # calculate euclidean distance between tip and next frame tip and tip and next frame tail
     # basis for decision which frame to flip: if tail is closer than tip, must be inverted
     tip2tip = np.linalg.norm(tipnow - tipnext, axis=1)
     tip2tail = np.linalg.norm(tipnow - tailnext, axis=1)
-    flipped = np.insert(tip2tip > tip2tail, 0, False)
-    
+    tail2tail = np.linalg.norm(tailnow - tailnext, axis=1)
+    tail2tip = np.linalg.norm(tailnow - tipnext, axis=1)
+    same2 = tip2tip + tail2tail
+    diff2 = tip2tail + tail2tip
+    flipped = np.insert(same2 > diff2, 0, False)
+
     # flip True and False after each True until next True (incl.) (inverted comparison)
     # if inversion is present, flipped is based on current tail, up until next inversion
     wrongcompare = (np.array(np.where(flipped))[0]+1)
@@ -172,15 +125,23 @@ def flip_ifinverted(df):
     # boolean inversion of the wrong compared ones
     for i,j in wrongcompare:
         flipped[i:j] = ~flipped[i:j]
-        
+
     if np.any(flipped):
         print('Following frames seem to be tracked upside down\nWe are going to flip those back:')
         print(np.where(flipped))
-    
+
     # inversion
-    df[flipped] = df[flipped,::-1]
+    arr[flipped] = arr[flipped,::-1]
+
+    # test if movement direction alligns with Centerline orientation most of the time
+    uCL,lCL,bCL = unitvector_space(arr, [-1,0])
+    uXY, lXY, bXY = unitvector(XY)
+    aCL = angle2vec(uCL,uXY)
+    if np.mean(aCL) > np.pi/2:
+        arr = arr[:,::-1]
+        print('Worm seems to travel backwards the majority of time, flipped all centerlines to agree with forward travelling assumption')
     
-    return df
+    return arr
 
 def orthlen2vec(coorDf1, coorDf2):
     # input: coorDf1 and coorDf2 with shape:x,x,2
@@ -302,7 +263,7 @@ def onoff_dict(arr_raw, labels = range(-1,4), return_duration=False, return_tran
     arr_dur =  []
     total_dur = 0
     for i,a in enumerate(arr_raw):
-        if isinstance(arr_raw, pd.Series) or isinstance(arr_raw, pd.DataFrame):
+        if isinstance(a, pd.Series) or isinstance(a, pd.DataFrame):
             a = a.values
         arr_s = a[1:]
         arr = a[:-1]
@@ -322,7 +283,7 @@ def onoff_dict(arr_raw, labels = range(-1,4), return_duration=False, return_tran
 
         for b in np.unique(a):
             b_idx = np.where(transi == b)
-            b_onoff = list(zip(onset[b_idx]+total_dur, dur[b_idx]+total_dur))
+            b_onoff = list(zip(onset[b_idx]+total_dur, dur[b_idx]))
             if b in arr_onoff.keys():
                 arr_onoff[b] = arr_onoff[b]+b_onoff
             else:

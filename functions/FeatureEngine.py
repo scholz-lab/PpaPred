@@ -35,7 +35,7 @@ def setup(inpath, outpath, skip_already):
 
 
 # Aim is to analyse the eigenpharynx of each results file
-def FeatureEngine(data, outs, logger):
+def FeatureEngine(data, outs, logger, skip_engine, fps=30):
     XYs, CLines = {},{}
     for fn in tqdm.tqdm(data):
         logger.info(f"\nfeature calculation for {fn}")
@@ -44,112 +44,176 @@ def FeatureEngine(data, outs, logger):
         ### CLine_Concat is necessary as long as result files are in csv file format
         if 'csv' in fn:  
             PG = pd.read_csv(data[fn])
-            if not 'Centerline' in PG.columns:
+            if not 'Centerline' in PG.columns:# or 'reversals_nose' not in PG.columns:
                 logger.debug('!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO')
                 continue
             CLine = proc.prepCL_concat(PG, "Centerline")
         elif 'json' in fn:
-            PG = pd.read_json(data[fn], orient='split')
-            CLine = np.array([row for row in PG['Centerline']])
+            PG = pd.read_json(data[fn])['Centerline']
+            CLine = np.array([row for row in PG])
         CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
 
-        #sanity check: inverted?
-        CLine = proc.flip_ifinverted(CLine)
+        # look for large area, filter
+        large_area = np.where(PG['area']>=np.mean(PG.area)*1.5)[0]
+        large_diff = [0]+[i+1 for i,e in enumerate(np.diff(large_area)) if e > 1] if large_area.size > 0 else []
+        large_size = np.diff(large_diff, append=len(large_area))
+        large_ranges = [range(large_area[d_i], large_area[d_i]+s) for d_i, s in zip(large_diff, large_size)]
+        logger.info(f'Area larger than threshold, collision assumed in {large_ranges}.\nCalculation of features will be done in splits, ignoring those and adjacent* ranges. *That are less than 1 sec long.')
 
-        ### feature calculation #####################################################################################
-        XY = PG[['x','y']].values                                                                                 ### center of mass (x and y coordinates in PG)
-        length, vec, angles = proc.angle(CLine[:,::np.ceil(CLine.shape[1]/34).astype(int)])                       ### calculates the vectors, their length and their inbetween angles of all centerline coordinates
-        len_sum = np.sum(length, axis=1)                                                                          ### calculates the overall summed length of the pharynx
-        ang_sum = np.sum(angles, axis =1)[:,np.newaxis]                                                           ### calculates the overall angle of the pharynx  
+        correct_area = np.where(PG['area']<=np.mean(PG.area)*1.5)[0]
+        correct_diff = [0]+[i+1 for i,e in enumerate(np.diff(correct_area)) if e > 1]
+        correct_size = np.diff(correct_diff, append=len(correct_area))
+        data_splits = []
+        for i in range(len(correct_size)):
+            if correct_size[i] > fps:
+                correct_start = correct_area[correct_diff[i]]
+                correct_end = correct_area[correct_diff[i]] + correct_size[i]
+                data_splits.append([correct_start, correct_end])
 
-        adjustCL = (CLine-np.mean(CLine))+np.repeat(XY.reshape(XY.shape[0],1,XY.shape[1]), CLine.shape[1], axis=1) ### CenterLine in arena space reference for  following calculations # fits better than subtracting 50
-        difflen, angle, v2_len = al.AngleLen(adjustCL, XY, hypotenuse = "v1", over="space", diffindex=[5,0])       ### vectors and angle between nosetip, defined as first 5 CLine points, and center of mass
+        PG_splits = []
+        CLine_splits = np.empty((0,*CLine.shape[1:]))
+        XY_splits = np.empty((0,2))
 
-        nose_unit_space, nose_len_space, nose_diff_space = al.unitvector_space(adjustCL,diffindex=[5,0])           ### unit vectors for calculation of angdiff and angspeed
-        nose_unit_frames, nose_len_frame, nose_diff_frame = al.unitvector(adjustCL[:,0])                           ### unit vectors for calculation of angdiff and angspeed
-        XY_unit, XY_len, XY_diff = al.unitvector(XY)                                                               ### unit vectors for calculation of angdiff and angspeed
-
-        angdiff_nose_frames = np.arccos(nose_unit_frames[1:,0]*nose_unit_frames[:-1,0] + 
-                                        nose_unit_frames[1:,1]*nose_unit_frames[:-1,1])                            ### angular difference between sequential (temporal) angles
-        angspeed_nose_sec = al.angular_vel_dt(angdiff_nose_frames, dt=1)                                           ### circular mean velocity over dt: 1 sec, velocity: angular difference between frames
-
-        crop = min(len(nose_unit_frames), len(nose_unit_space))
-        dot_noses = nose_unit_frames[:crop,0]*nose_unit_space[:crop,0] +nose_unit_frames[:crop,1]*nose_unit_space[:crop,1]
-        angle_noses = np.arccos(dot_noses) # mod of Vector is 1, so /mod can be left away
-        angle, angdiff_nose_frames, angspeed_nose_sec, angle_noses = al.extendtooriginal((angle, 
-                                                                                          angdiff_nose_frames, 
-                                                                                          angspeed_nose_sec, 
-                                                                                          angle_noses), 
-                                                                                         (adjustCL.shape[0],1))
-
-        ### concatanation ###########################################################################################
-        new_data = pd.DataFrame(np.hstack((ang_sum, 
-                                           len_sum,
-                                           angle, 
-                                           angdiff_nose_frames, 
-                                           angspeed_nose_sec,
-                                           angle_noses)), 
-                                columns=['SumAngle', 
-                                         'Length',
-                                         'NosetipCmAngle',
-                                         'AngDiffNoseFrames',
-                                         'AngSpeedNose', 
-                                         'AngBetweenNose'
-                                        ])
-        col_org_data = ['area', 
-                        'velocity', 
-                        'negskew_clean',
-                        'cms_speed', 
-                        'rate',
-                       ]
-        PG_new = pd.concat([PG[col_org_data], new_data], axis=1)
-        col_ang = ['SumAngle', 'NosetipCmAngle','AngDiffNoseFrames','AngSpeedNose', 'AngBetweenNose']
-        col_raw_data = PG_new.columns
-        ### append smoothed #########################################################################################
-        PG_new = pd.concat([PG_new,
-                            PG_new[PG_new.columns.difference(PG_new[col_ang].columns)].rolling(window=60, min_periods=1, center=True).mean().add_suffix(f"_mean"),
-                            PG_new[col_ang].rolling(window=60, min_periods=1, center=True).apply(stats.circmean, kwargs={'high':np.pi, "low":-np.pi}).add_suffix(f"_mean")], 
-                            axis=1)
-
-        ### Wavelet Transform #######################################################################################
-        scales = np.linspace(3, 50, 10)
-        for col in col_raw_data:
-            lowpass_d = wt.lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
-            lowpass_toolarge = PG_new.shape[0]-lowpass_d.shape[0]
-            if lowpass_toolarge < 0:
-                lowpass_d = lowpass_d[:lowpass_toolarge]
+        ### calculate features for each split independently
+        for iter,(on, off) in enumerate(data_splits):
+            logger.info(f'split {iter}, range: {on, off}')
+            
+            ### open data for current split
+            PG_split = PG.iloc[on:off].reset_index(drop=True)
+            XY_split = PG_split[['x','y']].values
+            ### tries to identify frames where the Centerline is tracked up side down, checks coherence of movement
+            CLine_split = proc.flip_ifinverted(CLine[on:off], XY_split)
+            ### created CL in arena space; mean fits better than subtracting 50, which would be half of set length
+            adjustCL_split = (CLine_split-np.mean(CLine_split))+np.repeat(XY_split.reshape(XY_split.shape[0],1, XY_split.shape[1]), 
+                                                                          CLine_split.shape[1], axis=1)
+            
+            ### feature calculation #####################################################################################
+            if not skip_engine:
+                ### calculates the vectors, their length and their inbetween angles of all centerline coordinates
+                length, _, CLArctan = proc.angle(CLine_split[:,::np.ceil(CLine_split.shape[1]/34).astype(int)])
+                ### calculates the overall summed length of the pharynx
+                SumLen = np.sum(length, axis=1)
+                ### calculates the curvature of the pharynx
+                Curvature = al.TotalAbsoluteCurvature(CLArctan, length)
+    
+    
+                ### vectors and angle between nosetip, defined as first 5 CLine_split points, and center of mass
+                _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", diffindex=[5,0])
+                _, tip2tip_arccos, _ =  al.AngleLen(adjustCL_split[:,0], hypotenuse = "v1", over="frames")
+                _, tip2tipMv_arccos, _ = al.AngleLen(adjustCL_split, adjustCL_split[:,0], hypotenuse = "v1", over="space", diffindex=[5,0])
+                #angspeed_nose_sec = al.angular_vel_dt(tip2tip_arccos, dt=1)
                 
-            coefficients, frequencies = wt.cwt_signal(lowpass_d, scales)#rec[:-1]
-            maxfreq_idx = np.argmax(abs(coefficients), axis=0)
-            maxfreq = maxfreq_idx.copy().astype('float')
-            for i, f in enumerate(frequencies):
-                np.put(maxfreq, np.where(maxfreq_idx == i), [f])
+                ### calculate reversal, as over 120deg 
+                reversal_bin = np.where(tip2cm_arccos >= np.deg2rad(120), 1, 0)
+                reversal_events = np.clip(np.diff(reversal_bin, axis=0), 0, 1)
+                reversal_fract = pd.Series(reversal_bin.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w))
+                reversal_rate = pd.Series(reversal_events.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w)*30)
+    
+    
+                ### reshapes all features to fit the original
+                Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate, reversal_fract = al.extendtooriginal((Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, 
+                                                                                                                                 reversal_rate, reversal_fract), (adjustCL_split.shape[0],1))
+                ### hstack all calculated features 
+                new_data = pd.DataFrame(np.hstack((Curvature, SumLen, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate, reversal_fract)), 
+                                        columns=['Curvature', 'Length','tip2cm_arccos','tip2tip_arccos', 'tip2tipMv_arccos','reversal_rate', 'reversal_fract'])
+    
+    
+                ### load original data from PharaGlow results file
+                col_org_data = ['area', 'velocity', 'rate','negskew_clean',]####################################
+                col_org_notexist = [c not in PG_split.columns for c in col_org_data]
+                if any(col_org_notexist):
+                    logger.debug(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data')
+                    ### TODO make entries with nans
+                    continue
+    
+    
+                ### combine new and original features in one Df
+                PG_new = pd.concat([PG_split[col_org_data], new_data], axis=1)
+                col_raw_data = PG_new.columns
+    
+                ### Calculating smooth, freq and amplitude for all columns
+                scales = np.linspace(3, 50, 10)
+                #freq = np.logspace(np.log10(0.3), np.log10(4.5), 10)####################################
+                #scales = np.floor(15/freq)####################################
+                for col in  PG_new.columns:
+                    lowpass_d = wt.lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
+                    lowpass_toolarge = PG_new.shape[0]-lowpass_d.shape[0]
+                    if lowpass_toolarge < 0:
+                        lowpass_d = lowpass_d[:lowpass_toolarge] 
+    
+                    coefficients, frequencies = wt.cwt_signal(lowpass_d, scales)#rec[:-1]
+                    maxfreq_idx = np.argmax(abs(coefficients), axis=0)
+                    maxfreq = maxfreq_idx.copy().astype('float')
+                    for i, f in enumerate(frequencies):
+                        np.put(maxfreq, np.where(maxfreq_idx == i), [f])
+    
+                    cols_coeff = pd.DataFrame(np.stack((abs(coefficients)), axis=1), columns=[f'{col}_cwt%02d'% scl for scl in scales])
+                    maxfreq_df = pd.DataFrame(maxfreq, columns=[f'{col}_maxfreq'])
+    
+                    PG_new = pd.concat([PG_new, cols_coeff, maxfreq_df], axis=1)
 
-            #lowpass_df = pd.DataFrame(lowpass_d, columns=[f'{col}_lowpass'])
-            cols_coeff = pd.DataFrame(np.stack((abs(coefficients)), axis=1), columns=[f'{col}_cwt%02d'% scl for scl in scales])
-            maxfreq_df = pd.DataFrame(maxfreq, columns=[f'{col}_maxfreq'])
-
-            PG_new = pd.concat([PG_new, 
-                                #lowpass_df,
-                                cols_coeff, maxfreq_df], axis=1)
-
-        ### Wavelet Transform #######################################################################################
-        ### Save to specified output  ###############################################################################
-        jsnL = json.loads(PG_new.to_json(orient="split"))
-        jsnF = json.dumps(jsnL, indent = 4)
         
-        with open(outs[fn], "w") as outfile:
-            outfile.write(jsnF)
-        XYs[fn] = XY
-        CLines[fn] = CLine
-    return outs, XYs, CLines
+                ### encode angular columns as cos sin
+                deg_cols = PG_new.filter(regex='arctan$|arccos$').columns
+                cos_ = al.encode_cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
+                sin_ = al.encode_sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
+                ### concat encoded columns, drop angular columns # for ease of distance and mean calculation
+                PG_new = pd.concat([PG_new, cos_, sin_], axis=1).drop(deg_cols, axis=1)
+    
+                ### calculate means of the basal columns (not cwt or maxfreq)
+                col_basic = PG_new.columns.drop(list(PG_new.filter(regex='cwt|maxfreq').columns))
+                PG_new = pd.concat([PG_new, PG_new[col_basic].rolling(window=60, min_periods=1, center=True).mean().add_suffix(f"_mean")], axis=1)
+    
+                ### set index to original split
+                PG_new = PG_new.set_index(pd.Index(range(on,off)), drop=True)
+    
+                ### vstack with padding of nans in range of next large area, not needed for dfs as they contain index
+                PG_splits.append(PG_new)
+            prepadCL = np.full((on-len(CLine_splits), *CLine_split.shape[1:]), np.nan)
+            prepadXY = np.full((on-len(XY_splits), *XY_split.shape[1:]), np.nan)
+            CLine_splits = np.vstack([CLine_splits,prepadCL,CLine_split])
+            XY_splits = np.vstack([XY_splits,prepadXY,XY_split])
 
-def run(inpath, outpath, logger, return_XYCLine = False, skip_already = False):
+        if not skip_engine:
+            ### concat df splits, reindex to include nan in areas not present in PG_splits indices
+            PG_joined = pd.concat(PG_splits)
+            correct_idx = PG_joined.index
+            PG_joined = PG_joined.reindex(pd.Index(range(0,len(PG))))
+    
+            # interpolate features, also newly calculated at previously detected large area glitches
+            PG_joined.interpolate('ffill', axis=0)
+            logger.info('Ffill-Interpolation of nan frames')
+            # if glitch longer than 1 sec reset nans
+            glitch_idx = PG_joined.index.difference(correct_idx)
+            glitch_diff = [0]+[i+1 for i,e in enumerate(np.diff(glitch_idx)) if e > 1]
+            glitch_size = np.diff(glitch_diff, append=len(glitch_idx))
+            for i in range(len(glitch_size)):
+                if glitch_size[i] > fps:
+                    glitch_start = glitch_idx[glitch_diff[i]]
+                    glitch_end = glitch_idx[glitch_diff[i]] + glitch_size[i]
+                    logger.info(f'Exempted from interpolation: {range(glitch_start,glitch_end)} (over 1 sec long)')
+                    PG_joined.iloc[glitch_start:glitch_end] = np.nan
+    
+    
+            jsnL = json.loads(PG_joined.to_json(orient="split"))
+            jsnF = json.dumps(jsnL, indent = 4)
+            outs[fn] = os.path.join(outs[fn])
+            with open(outs[fn], "w") as outfile:
+                outfile.write(jsnF)
+                
+        ### postpad the end
+        CL_joined = np.vstack([CLine_splits, np.full((len(CLine) - off, *CLine_splits.shape[1:]), np.nan)])
+        XY_joined = np.vstack([XY_splits, np.full((len(PG) - off, *XY_splits.shape[1:]), np.nan)])
+        XYs[fn] = XY_joined
+        CLines[fn] = CL_joined
+    return outs, XYs, CLines
+    
+def run(inpath, outpath, logger, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30):
     if isinstance(inpath,str):
         inpath = [inpath]
     if isinstance(outpath,str):
         outpath = [outpath]
     ins, outs = setup(inpath, outpath, skip_already)
-    outs, XYs, CLines = FeatureEngine(ins, outs, logger)
+    outs, XYs, CLines = FeatureEngine(ins, outs, logger, skip_engine, fps)
     if return_XYCLine:
         return XYs, CLines

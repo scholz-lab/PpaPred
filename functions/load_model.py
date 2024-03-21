@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def load_tolist(loc, label=None, labelstonum=None, droplabels = None, dropcolumns = None, target2 = None, labelstonum2=None, droplabelcol=True):
+def load_tolist(loc, r = False, label=None, labelstonum=None, droplabels = None, dropcolumns = None, target2 = None, labelstonum2=None, droplabelcol=True):
     # read data from json files
     # create empty array
     data_lst = []
