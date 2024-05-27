@@ -43,33 +43,11 @@ sys.path.append(os.path.expanduser('~'))
 from PpaPy.processing.preprocess import addhistory, select_features
 from functions.modelfunctions import add_power_transform, select_features, addhistory
 import argparse
-
-import pickle
-from sklearn import set_config
  
 from numba import jit
 # set invalid (division by zero error) to ignore
 np.seterr(invalid='ignore')
 
-
-class NpIntEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        return json.JSONEncoder.default(self, obj)
-
-class NanConverter(json.JSONEncoder):
-    def nan2None(self, obj):
-        if isinstance(obj, dict):
-            return {k:self.nan2None(v) for k,v in obj.items()}
-        elif isinstance(obj, list):
-            return [self.nan2None(v) for v in obj]
-        elif isinstance(obj, float) and np.isnan(obj):
-            return None
-        return obj
-    def encode(self, obj, *args, **kwargs):
-        return super().encode(self.nan2None(obj), *args, **kwargs)
-    
 # %% [markdown]
 # Please provide where your files are stored and where you would like your data to be saved in the following section.
 
@@ -78,18 +56,57 @@ parser = argparse.ArgumentParser(description="Argument Parser",
 parser.add_argument("-in", "--inpath", default="", type=str, help="provide the inpath to the dataset")
 parser.add_argument("-p", "--pattern", default=[''], nargs='+', type=str, help="Build model from pieces: scaler: MinMaxScaler, to_dask: numpy array to dask, RF: RandomForestClassifier, PCA: pca, fs_prefit: feature selection based on SelectKBest")
 parser.add_argument("-o", "--outpath", default="", type=str, help="provide the outpath where data should be safed")
-parser.add_argument("-id", "--jobid", default='xxxxxxxxxx', type=str, help="get jobid of slurm job")
 
 
 args = vars(parser.parse_args())
 # %%
+def add_power_transform(df, cols):
+    arr_t = power_transform(df.loc[:,cols])
+    return pd.concat([df, pd.DataFrame(arr_t, columns = [c+'_tr' for c in cols])], axis = 1)
+
+def select_features(df, names):
+
+    if isinstance(names, str):
+        if names == 'all':
+            names = df.columns
+    return df.loc[:, names]
+
+def addhistory(df, dt_shifted, name_filter=None):
+    """
+    Concats history along axis 1 of df.
+    Args: 
+        df (DataFrame): dataframe across which to append history
+        dt_shifted (list): list of absolute frame values to go back and forward in time, for each frame
+        name_filter (list): column names that should not be included in addhistory, default None
+    Returns:
+        multshift (dataframe): dataframe with history, history columns have suffic _pos or _neg
+    """
+    if name_filter is not None:
+        name_filter_all = list(df.filter(regex="|".join(name_filter)).columns)
+        name_keep = df.columns.drop(name_filter_all)
+        df_ = df.loc[:, name_filter_all]
+        df = df.loc[:, name_keep]
+    multshift = df.copy()
+    for i in dt_shifted:
+        p_shift = df.shift(i)
+        n_shift = df.shift(-i)
+        multshift = pd.concat([multshift, p_shift.add_suffix(f"_pos{i}"), n_shift.add_suffix(f"_neg{i}")], axis=1)
+    if name_filter is not None:
+        multshift = pd.concat([df_, multshift], axis=1)
+    
+    return multshift 
+# %%
+#args = {'inpath': "/gpfs/soma_fs/scratch/src/boeger/data_gueniz/",
+#        'pattern': ["Exp1_WT_larvae"],
+#        'outpath': "/gpfs/soma_fs/scratch/src/boeger/PpaPred_eren_2403"}
 inpath = args['inpath']
 inpath_with_subfolders = True
 inpath_pattern = args['pattern']
 args_out = args['outpath']
-jobID = args['jobid']
 
-base_outpath = makedir(args_out)
+
+base_outpath = makedir(args_out) #makedir('/gpfs/soma_fs/scratch/src/boeger/PpaPred_eren')
+#base_outpath = makedir('/gpfs/soma_fs/scratch/src/boeger/data_roca')
 
 # %%
 date = time.strftime("%Y%m%d")
@@ -102,35 +119,39 @@ if inpath_with_subfolders:
 else:
     inpath = [inpath]
 
-outpath = []
+outpath, out_engine, out_predicted = [],[],[]
 for p in inpath:
     in_folder = os.path.basename(p)
-    outpath.append(makedir(os.path.abspath(f"{base_outpath}/{in_folder}")))
-
+    outpath.append(makedir(os.path.abspath(f"{base_outpath}/{in_folder}"))) # you can also use datestr to specify the outpath folder, like this makedir(os.path.abspath(f"{datestr}_PpaPrediction"))
+    out_engine.append(os.path.join(outpath[-1], in_folder+'_engine'))
+    #out_predicted.append(os.path.join(outpath[-1], in_folder+'_predicted'))
 
 # %%
+os.path.commonpath(inpath)
+
+# %% [markdown]
 # In the following section, standard model parameters are set. Change those only if necessary.
-# changes to config file are preferrerable
+
+# %%
 config = yaml.safe_load(open("config.yml", "r"))
 
+# %%
 cluster_color = config['cluster_color']
 cluster_group = config['cluster_group_man']
 cluster_label = config['cluster_names']
 clu_group_label = {_:f'{_}, {__}' for _, __ in tuple(zip([c for c in cluster_label.values()],[g for g in cluster_group.values()]))}
 skip_already = config['settings']['skip_already']
-overwrite = True
 
+# %%
 model_path = config['settings']['model']
 version = os.path.basename(model_path).split("_")[1].split(".")[0]
 ASpath = config['settings']['ASpath']
 smooth = config['settings']['fbfill']
 fps = config['settings']['fps']
-
-# lists to store already processed files in
+engine_done = []
 prediction_done = []
 
-# logger file created
-logger_out = os.path.join(base_outpath,f"{jobID}_{datestr}_PpaForagingPrediction.log")
+logger_out = os.path.join(base_outpath,f"{datestr}_PpaForagingPrediction.log")
 logger = setup_logger('logger',filename=logger_out)
 logger.info(f"Foraging prediction of Pristionchus pacificus")
 logger.info(f"Version of model == {version}, stored at {model_path}\n")
@@ -138,70 +159,68 @@ log_inpath = '\n'.join(inpath)
 logger.info(f"Files to be predicted stored at:\n{log_inpath}")
 
 # %% [markdown]
-# 1. Feature Engineering
-# In the following section, additional features are calculated.
-# The engineerd data files are saved under the specified outpath/subfolder.
+# ## 1. Feature Engineering
+# In the following section, additional features are calculated.<br>
+# The engineerd data files are saved under the specified outpath/subfolder.<br>
 # (with subfolder being the inpath folder name postfixed by _engine)
 
-XYs, CLines  = FeatureEngine.run(inpath, outpath, logger, return_XYCLine =True, skip_engine = False, skip_already=False, out_fn_suffix='prediction') # skip_engine skip_already
+# %%
+XYs, CLines  = FeatureEngine.run(inpath, out_engine, logger, return_XYCLine =True, skip_engine = False, skip_already=False)
 
 # %%
-
-set_config(transform_output="pandas")
+import pickle
 model = joblib.load(open(model_path, 'rb'))
 augsel = joblib.load(ASpath)
 imp = SimpleImputer(missing_values=np.nan, strategy='mean')
 
 # %%
-all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern)]
+all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if 'engine' in os.path.basename(root) and any(pat in os.path.basename(root) for pat in inpath_pattern)]
+all_engine
 
 # %% [markdown]
 # ## 3. Prediction
-notpredicted = []
+
 # %%
+skip_already = False
 for fpath in tqdm.tqdm(all_engine):
     fn = os.path.basename(fpath)
     dir_engine = os.path.dirname(fpath)
-    if skip_already and fn in os.listdir(outpath):
+    out_predicted = makedir(dir_engine[:-len('engine')]+'predicted')
+    out_fn = fn.replace('features', 'predicted')
+    if skip_already and out_fn in os.listdir(out_predicted):
         continue
-    if not fn[0] == '.' and not fn in prediction_done and os.path.isfile(fpath):
-        print(fn)
+    if not fn[0] == '.' and not out_fn in prediction_done and os.path.isfile(fpath):
         d = load_tolist(fpath, droplabelcol=False)[0]
         
-        X = augsel.transform(d)
-        if not X.shape[1] == 31:
-            logger.info(f'WARNING: {fn} could not be predicted!')
-            notpredicted.append(fn)
-            continue
-        X = imp.fit_transform(X) # model seems to run well without
-        #X = X.add_suffix('_tr') # not longer needed once new model has been trained
+        X = augsel.fit_transform(d)
+        col = X.columns
+        X = pd.DataFrame(imp.fit_transform(X), columns = col)
         
         pred = model.predict(X)
         proba = model.predict_proba(X)
-        
+        pred_smooth = proc.ffill_bfill(pred, smooth)
+        pred_smooth = np.nan_to_num(pred_smooth,-1)
         proba_max = np.amax(proba, axis=1) ### New
         proba_max_mean = pd.DataFrame(proba_max).rolling(30, min_periods=1).mean().values ### New
-        proba_low50 = np.all(proba_max_mean < .5, axis=1) ### New
-        pred[proba_low50] = -1 ### NEW
-        
-        pred = pd.Series(pred, index=X.index, name='prediction').reindex(d.index, method='bfill', limit=29).fillna(-1) ### NEW
-        proba = pd.DataFrame(proba, index=X.index, columns=[f'proba_{i}' for i in range(proba.shape[1])]).reindex(d.index, method='bfill', limit=29).fillna(0)
+        proba_low = np.all(proba_max_mean < .5, axis=1) ### New
+        pred_smooth[proba_low] = -1 ### NEW
 
-        p_out = pd.concat([d, pred, proba], axis=1) #d, 
-        
+        #fn = os.path.basename(fn)
+        #out_fn = '_'.join(fn.split('_')[:4]+['predicted.json'])
+        p_out = pd.concat([d, pd.DataFrame(pred_smooth, columns=['prediction']), pd.DataFrame(model.predict_proba(X), columns=[f'proba_{i}' for i in range(proba.shape[1])])], axis=1)
+
         jsnL = json.loads(p_out.to_json(orient="split"))
         jsnF = json.dumps(jsnL, indent = 4)
-        outpath_p = os.path.join(fpath)
+        outpath_p = os.path.join(out_predicted,out_fn)
         with open(outpath_p, "w") as outfile:
             outfile.write(jsnF)
-
-
-logger.info(f'Following files could not be predicted: {notpredicted}')      
+        
 # %% [markdown]
 # ## 4. Prediction
-# The augmented + predicted data files are saved under the specified outpath
+# The augmented + predicted data files are saved under the specified outpath/subfolder.<br>
+# (with subfolder being the inpath folder name postfixed by _predicted)<br>
 # 
-# In the outpath, plots of the bouts predicted over time along with the velocity and pumping rate are saved as pdf files.
+# In the _predicted, plots of the bouts predicted over time along with the velocity and pumping rate are saved as pdf files.
 
 # %%
 def transition_plotter(transition_toother, cluster_color, transition_self=None, figsize=(8,6), mut_scale=40, node_size=4000, 
@@ -315,36 +334,45 @@ def CLtrajectory_plotter(CLine, XY, y, cluster_color, cluster_label, figsize=(10
     return fig
 
 # %%
+class NpIntEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        return json.JSONEncoder.default(self, obj)
+
 # %%
 ethograms = True
 summaries = True
 transitions = True
 trajectories = True
 
-all_predicted = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and 'prediction.json' in name]
+all_predicted = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if 'predicted' in os.path.basename(root) and any(pat in os.path.basename(root) for pat in inpath_pattern) and 'predicted.json' in name]
+#for fn in tqdm.tqdm(os.listdir(out_predicted)):
+#    if fn[-13:] == 'predicted.csv' or fn[-14:] == 'predicted.json':
+
+# %%
+len(all_predicted)
 
 # %%
 for fpath in tqdm.tqdm(all_predicted):
-    fn = os.path.basename(fpath)
-    fn_out = fn.replace('prediction.json','')
-
-    dir_engine = os.path.dirname(fpath)
-    out_analysis = makedir(os.path.join(dir_engine, 'analysis'))
     
-    d = load_tolist(os.path.join(fpath), droplabelcol=False)[0]
-    d['prediction'].to_csv(os.path.join(out_analysis, fn.replace('json','csv')), index=False)
+    fn = os.path.basename(fpath)
+    fn_out = fn.replace('predicted.json','')
+    out_predicted = os.path.dirname(fpath)
+    
+    d = load_tolist(os.path.join(out_predicted,fn), droplabelcol=False)[0]
     y_ps = d['prediction'].values
-    y_ps = np.nan_to_num(y_ps, -1)
+    d['prediction'].to_csv(os.path.join(out_predicted, fn_out+'prediction.csv'), index=False)
         
     if ethograms:            
-        onoff = proc.onoff_dict(y_ps, labels = np.unique(y_ps))
+        onoff = proc.onoff_dict(y_ps, labels =np.unique(y_ps))
         onoff = {int(k):v for k,v in onoff.items()}
-        with open(os.path.join(out_analysis, fn_out+'_onoff.json'), "w") as onoff_out: 
+        with open(os.path.join(out_predicted, fn_out+'_onoff.json'), "w") as onoff_out: 
             json.dump(onoff,onoff_out,cls=NpIntEncoder)
         ethogram_plot = ethogram_plotter(d, y_ps, onoff,  smooth, cluster_color)
         #plt.savefig('clusterbouts.pdf')
-        plt.savefig(os.path.join(out_analysis, fn_out+'_predictedbouts.pdf'))
-        plt.close()
+        plt.savefig(os.path.join(out_predicted, fn_out+'_predictedbouts.pdf'))
+        plt.show()
 
     if summaries:
         idx = pd.IndexSlice
@@ -357,7 +385,7 @@ for fpath in tqdm.tqdm(all_predicted):
         summary = summary.T.reset_index(drop=True).set_index(summary.T.index.map('_'.join)).T
         summary = summary.set_index(summary.index.astype(int))
         summary = summary.reindex([k for k in cluster_label if k != -1])
-        summary.to_csv(os.path.join(out_analysis, fn_out+'summary.csv'))
+        summary.to_csv(os.path.join(out_predicted, fn_out+'summary.csv'))
     
     if transitions:
         y_ps_transition = pd.DataFrame(y_ps).rolling(30).apply(lambda s: s.mode()[0])[29::30].values.flatten()
@@ -375,21 +403,20 @@ for fpath in tqdm.tqdm(all_predicted):
         #diag_idx = np.diag_indices(len(transition_merged))
         #transition_merged[diag_idx] = transition_self
         transition_merged = pd.DataFrame(transition_all, columns = trans_col[1], index=trans_col[0])#.fillna(0) #should not fill nan with 0!
-        transition_merged.to_csv(os.path.join(out_analysis, fn_out+'transitions.csv'))
+        transition_merged.to_csv(os.path.join(out_predicted, fn_out+'transitions.csv'))
         
         #### TRANSITION PLOT
     
         #transition_plot = transition_plotter(transition_all, cluster_color, node_alpha=summary['duration_relative'].fillna(0).tolist())
-        #plt.savefig(os.path.join(out_analysis,fn_out+'clustertransitions.pdf'))
+        #plt.savefig(os.path.join(out_predicted,fn_out+'clustertransitions.pdf'))
     
 
     if trajectories:
-        XY = XYs[fn.replace('_prediction.json','.json_labeldata.csv')]
-        CLine = CLines[fn.replace('_prediction.json','.json_labeldata.csv')]
+        XY = XYs[fn.replace('_predicted.json','.json_labeldata.csv')]
+        CLine = CLines[fn.replace('_predicted.json','.json_labeldata.csv')]
 
 
         
         CLtrajectory_plot = CLtrajectory_plotter(CLine, XY, y_ps, cluster_color, cluster_label, figsize=(10,10),)
-        plt.savefig(os.path.join(out_analysis, fn_out+'CLtrajectory.pdf'))
-        plt.close()
+        plt.savefig(os.path.join(out_predicted, fn_out+'CLtrajectory.pdf'))
 

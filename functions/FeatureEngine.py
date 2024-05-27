@@ -5,6 +5,7 @@ import pandas as pd
 import json
 from scipy import stats
 import tqdm
+import itertools
 
 import matplotlib.pylab as plt
 
@@ -14,9 +15,15 @@ import functions.waveletTransform as wt
 import functions.algebra as al
 from functions.io import makedir
 
-## Settings and load data
+sys.path.append(os.path.expanduser("~"))
+from PpaPy.calculate.descriptive import velocity
 
-def setup(inpath, outpath, skip_already):
+## Settings and load data
+class Printlogger():
+    def info(str):
+        print(str)
+
+def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='features'):
     engine_done = []
     ins = {}
     outs = {}
@@ -25,30 +32,42 @@ def setup(inpath, outpath, skip_already):
         out = makedir(dirOut)
         if skip_already:
             engine_done = [f for f in os.listdir(out)]
+        i = 0
         for fn in os.listdir(dirIn):
-            out_fn = os.path.join(out, f"{fn.split('.')[0]}_features.json")
+            out_fn = os.path.join(out, f"{fn.split('.')[0]}_{out_fn_suffix}.json")
             if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done:
                 ins[fn] = os.path.join(dirIn, fn)
                 outs[fn] = out_fn
+                if break_after:
+                    if i == break_after:
+                        break
+                    i += 1
     return ins, outs
 
 
 
 # Aim is to analyse the eigenpharynx of each results file
 def FeatureEngine(data, outs, logger, skip_engine, fps=30):
+    if logger is None:
+        logger = Printlogger
+
+    col_org_data = ['area', 'rate','negskew_clean',]
+    scales = np.linspace(3, 50, 10)
+    negskew_scale = 15/np.linspace(.3,5,10)
+    
     XYs, CLines = {},{}
     for fn in tqdm.tqdm(data):
         logger.info(f"\nfeature calculation for {fn}")
         name = fn.split(".")[0]
 
         ### CLine_Concat is necessary as long as result files are in csv file format
-        if 'csv' in fn:  
+        if fn.endswith('csv'):
             PG = pd.read_csv(data[fn])
             if not 'Centerline' in PG.columns:# or 'reversals_nose' not in PG.columns:
                 logger.debug('!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO')
                 continue
             CLine = proc.prepCL_concat(PG, "Centerline")
-        elif 'json' in fn:
+        if fn.endswith('json'):
             PG = pd.read_json(data[fn])['Centerline']
             CLine = np.array([row for row in PG])
         CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
@@ -90,36 +109,41 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
             ### feature calculation #####################################################################################
             if not skip_engine:
                 ### calculates the vectors, their length and their inbetween angles of all centerline coordinates
-                length, _, CLArctan = proc.angle(CLine_split[:,::np.ceil(CLine_split.shape[1]/34).astype(int)])
+                #length, _, CLArctan = proc.angle(CLine_split[:,::np.ceil(CLine_split.shape[1]/34).astype(int)])
                 ### calculates the overall summed length of the pharynx
-                SumLen = np.sum(length, axis=1)
+                #SumLen = np.sum(length, axis=1)
                 ### calculates the curvature of the pharynx
-                Curvature = al.TotalAbsoluteCurvature(CLArctan, length)
+                #Curvature = al.TotalAbsoluteCurvature(CLArctan, length)
     
-    
+                # edited
                 ### vectors and angle between nosetip, defined as first 5 CLine_split points, and center of mass
-                _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", diffindex=[5,0])
-                _, tip2tip_arccos, _ =  al.AngleLen(adjustCL_split[:,0], hypotenuse = "v1", over="frames")
-                _, tip2tipMv_arccos, _ = al.AngleLen(adjustCL_split, adjustCL_split[:,0], hypotenuse = "v1", over="space", diffindex=[5,0])
+                _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
+                #_, tip2tip_arccos, _ =  al.AngleLen(adjustCL_split[:,0], hypotenuse = "v1", over="frames")
+                #_, tip2tipMv_arccos, _ = al.AngleLen(adjustCL_split, adjustCL_split[:,0], hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
                 #angspeed_nose_sec = al.angular_vel_dt(tip2tip_arccos, dt=1)
                 
+                # New
+                #_, nose2nose_arccos, _ = al.AngleLen(adjustCL_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[30,0]), v2_args=dict(diffindex=[30,0]))
+
                 ### calculate reversal, as over 120deg 
                 reversal_bin = np.where(tip2cm_arccos >= np.deg2rad(120), 1, 0)
                 reversal_events = np.clip(np.diff(reversal_bin, axis=0), 0, 1)
-                reversal_fract = pd.Series(reversal_bin.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w))
                 reversal_rate = pd.Series(reversal_events.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w)*30)
     
     
+                # edited
                 ### reshapes all features to fit the original
-                Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate, reversal_fract = al.extendtooriginal((Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, 
-                                                                                                                                 reversal_rate, reversal_fract), (adjustCL_split.shape[0],1))
-                ### hstack all calculated features 
-                new_data = pd.DataFrame(np.hstack((Curvature, SumLen, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate, reversal_fract)), 
-                                        columns=['Curvature', 'Length','tip2cm_arccos','tip2tip_arccos', 'tip2tipMv_arccos','reversal_rate', 'reversal_fract'])
-    
-    
+                tip2cm_arccos, reversal_rate, = al.extendtooriginal((
+                                                                    tip2cm_arccos,
+                                                                    reversal_rate,), 
+                                                                    (adjustCL_split.shape[0],1))
+
+                # edited
+                # hstack all calculated features 
+                new_data = pd.DataFrame(np.hstack((tip2cm_arccos, reversal_rate)), 
+                                        columns=['tip2cm_arccos','reversal_rate'])
+        
                 ### load original data from PharaGlow results file
-                col_org_data = ['area', 'velocity', 'rate','negskew_clean',]####################################
                 col_org_notexist = [c not in PG_split.columns for c in col_org_data]
                 if any(col_org_notexist):
                     logger.debug(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data')
@@ -129,41 +153,50 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
     
                 ### combine new and original features in one Df
                 PG_new = pd.concat([PG_split[col_org_data], new_data], axis=1)
-                col_raw_data = PG_new.columns
+                PG_new['velocity'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=30)
+                PG_new['velocity_mean'] = PG_new['velocity'].rolling(window=60, min_periods=1).mean()
+                PG_new['velocity_dt60'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=60)
+                # new
+                PG_new['velocity_dt150'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=150)
     
                 ### Calculating smooth, freq and amplitude for all columns
-                scales = np.linspace(3, 50, 10)
-                #freq = np.logspace(np.log10(0.3), np.log10(4.5), 10)####################################
-                #scales = np.floor(15/freq)####################################
                 for col in  PG_new.columns:
+                    if 'negskew'in col:
+                        _scale = negskew_scale
+                    else:
+                        _scale = scales
                     lowpass_d = wt.lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
                     lowpass_toolarge = PG_new.shape[0]-lowpass_d.shape[0]
                     if lowpass_toolarge < 0:
                         lowpass_d = lowpass_d[:lowpass_toolarge] 
     
-                    coefficients, frequencies = wt.cwt_signal(lowpass_d, scales)#rec[:-1]
+                    coefficients, frequencies = wt.cwt_signal(lowpass_d, _scale)#rec[:-1]
                     maxfreq_idx = np.argmax(abs(coefficients), axis=0)
                     maxfreq = maxfreq_idx.copy().astype('float')
                     for i, f in enumerate(frequencies):
                         np.put(maxfreq, np.where(maxfreq_idx == i), [f])
     
-                    cols_coeff = pd.DataFrame(np.stack((abs(coefficients)), axis=1), columns=[f'{col}_cwt%02d'% scl for scl in scales])
+                    # edited
                     maxfreq_df = pd.DataFrame(maxfreq, columns=[f'{col}_maxfreq'])
-    
-                    PG_new = pd.concat([PG_new, cols_coeff, maxfreq_df], axis=1)
+                    if 'velocity_dt60' in col or 'negskew' in col:
+                        cols_coeff = pd.DataFrame(np.stack((abs(coefficients)), axis=1), columns=[f'{col}_cwt%03.2f'% fr for fr in np.round(frequencies, 2)]) # type: ignore
+                        PG_new = pd.concat([PG_new, cols_coeff, maxfreq_df], axis=1)
+                    else:
+                        PG_new = pd.concat([PG_new, maxfreq_df], axis=1)
 
         
-                ### encode angular columns as cos sin
-                deg_cols = PG_new.filter(regex='arctan$|arccos$').columns
-                cos_ = al.encode_cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
-                sin_ = al.encode_sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
+                # edited
+                # encode angular columns as cos sin
+                # take rolling circular mean
+                deg_cols = PG_new.filter(regex='arccos$').columns
+                #cos_ = np.cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
+                #cos_ = cos_.rolling(60, min_periods=1, center=True).mean()
+                #sin_ = np.sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
+                #sin_ = sin_.rolling(60, min_periods=1, center=True).mean()
                 ### concat encoded columns, drop angular columns # for ease of distance and mean calculation
-                PG_new = pd.concat([PG_new, cos_, sin_], axis=1).drop(deg_cols, axis=1)
-    
-                ### calculate means of the basal columns (not cwt or maxfreq)
-                col_basic = PG_new.columns.drop(list(PG_new.filter(regex='cwt|maxfreq').columns))
-                PG_new = pd.concat([PG_new, PG_new[col_basic].rolling(window=60, min_periods=1, center=True).mean().add_suffix(f"_mean")], axis=1)
-    
+                #PG_new = pd.concat([PG_new, cos_, sin_], axis=1)
+                PG_new = PG_new.drop(deg_cols, axis=1)
+
                 ### set index to original split
                 PG_new = PG_new.set_index(pd.Index(range(on,off)), drop=True)
     
@@ -208,12 +241,12 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
         CLines[fn] = CL_joined
     return outs, XYs, CLines
     
-def run(inpath, outpath, logger, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30):
+def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features'):
     if isinstance(inpath,str):
         inpath = [inpath]
     if isinstance(outpath,str):
         outpath = [outpath]
-    ins, outs = setup(inpath, outpath, skip_already)
+    ins, outs = setup(inpath, outpath, skip_already, break_after=break_after, out_fn_suffix=out_fn_suffix)
     outs, XYs, CLines = FeatureEngine(ins, outs, logger, skip_engine, fps)
     if return_XYCLine:
         return XYs, CLines

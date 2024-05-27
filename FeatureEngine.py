@@ -6,8 +6,22 @@ import json
 from scipy import stats
 import pywt
 import logging
-
+import itertools
 import matplotlib.pylab as plt
+
+def velocity(x,y, scaling, fps, dt=5):
+    """
+    Calculates the velocity from euclidean distance given the x and y coordinates over time.
+    Parameters:
+        x, y : numpy arrays representing the x and y coordinates of the object over time.
+        scaling : a scaling factor to convert the units of x and y coordinates.
+        fps : frames per second, the rate at which the coordinates are sampled.
+        dt : time interval over which the velocity is calculated. Default is 5.
+    Returns:
+        dist*fps : numpy array representing the velocity of the object over time."""
+    x, y = x*scaling, y*scaling
+    dist = np.sqrt(x.diff(periods=dt)**2 + y.diff(periods=dt)**2)/dt
+    return dist*fps
 
 def extendtooriginal(arrays, org_shape):
     extended = []
@@ -242,19 +256,22 @@ def setup(inpath, outpath, skip_already):
 
 # Aim is to analyse the eigenpharynx of each results file
 def FeatureEngine(data, outs, logger, fps=30):
+    scales = np.linspace(3,50,10)
+    negskew_scale = 15/np.linspace(.3,5,10)#np.logspace(3,50,10) #np.linspace(np.sqrt(3), np.linspace(50))**2 #np.array([3,3.3, 3.7, 4.2, 4.9, 6, 7.5, 10, 15, 30])
+
     XYs, CLines = {},{}
     for fn in data:
         logger.info(f"\nfeature calculation for {fn}")
         name = fn.split(".")[0]
 
         ### CLine_Concat is necessary as long as result files are in csv file format
-        if 'csv' in fn:  
+        if fn.endswith('csv'):  
             PG = pd.read_csv(data[fn])
             if not 'Centerline' in PG.columns:# or 'reversals_nose' not in PG.columns:
                 logger.debug('!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO')
                 continue
             CLine = prepCL_concat(PG, "Centerline")
-        elif 'json' in fn:
+        if fn.endswith('json'):
             PG = pd.read_json(data[fn])['Centerline']
             CLine = np.array([row for row in PG])
         CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
@@ -311,20 +328,19 @@ def FeatureEngine(data, outs, logger, fps=30):
             ### calculate reversal, as over 120deg 
             reversal_bin = np.where(tip2cm_arccos >= np.deg2rad(120), 1, 0)
             reversal_events = np.clip(np.diff(reversal_bin, axis=0), 0, 1)
-            reversal_fract = pd.Series(reversal_bin.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w))
             reversal_rate = pd.Series(reversal_events.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w)*30)
 
 
             ### reshapes all features to fit the original
-            Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate, reversal_fract = extendtooriginal((Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, 
-                                                                                                                             reversal_rate, reversal_fract), (adjustCL_split.shape[0],1))
+            Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate = extendtooriginal((Curvature, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, 
+                                                                                                                             reversal_rate), (adjustCL_split.shape[0],1))
             ### hstack all calculated features 
-            new_data = pd.DataFrame(np.hstack((Curvature, SumLen, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate, reversal_fract)), 
-                                    columns=['Curvature', 'Length','tip2cm_arccos','tip2tip_arccos', 'tip2tipMv_arccos','reversal_rate', 'reversal_fract'])
+            new_data = pd.DataFrame(np.hstack((Curvature, SumLen, tip2cm_arccos, tip2tip_arccos, tip2tipMv_arccos, reversal_rate)), 
+                                    columns=['Curvature', 'Length','tip2cm_arccos','tip2tip_arccos', 'tip2tipMv_arccos','reversal_rate'])
 
 
             ### load original data from PharaGlow results file
-            col_org_data = ['area', 'velocity', 'rate','negskew_clean',]####################################
+            col_org_data = ['area', 'rate','negskew_clean',]####################################
             col_org_notexist = [c not in PG_split.columns for c in col_org_data]
             if any(col_org_notexist):
                 logger.debug(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data')
@@ -333,41 +349,48 @@ def FeatureEngine(data, outs, logger, fps=30):
 
 
             ### combine new and original features in one Df
-            PG_new = pd.concat([PG_split[col_org_data], new_data], axis=1)
-            col_raw_data = PG_new.columns
+            # combine new and original features in one Df
+            PG_new = pd.concat([PG_split[col_org_data], new_data], axis=1) #Ints.iloc[on:off].reset_index(drop=True), 
+            PG_new['velocity'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=30)
+            PG_new['velocity_mean'] = PG_new['velocity'].rolling(window=60, min_periods=1).mean()
+            PG_new['velocity_dt60'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=60)
 
             ### Calculating smooth, freq and amplitude for all columns
-            scales = np.linspace(3, 50, 10)
-            #freq = np.logspace(np.log10(0.3), np.log10(4.5), 10)####################################
-            #scales = np.floor(15/freq)####################################
             for col in  PG_new.columns:
+                if 'negskew'in col:
+                    _scale = negskew_scale
+                else:
+                    _scale = scales
                 lowpass_d = lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
                 lowpass_toolarge = PG_new.shape[0]-lowpass_d.shape[0]
                 if lowpass_toolarge < 0:
-                    lowpass_d = lowpass_d[:lowpass_toolarge] 
+                    lowpass_d = lowpass_d[:lowpass_toolarge]
 
-                coefficients, frequencies = cwt_signal(lowpass_d, scales)#rec[:-1]
+                coefficients, frequencies = cwt_signal(lowpass_d, _scale)#rec[:-1]
                 maxfreq_idx = np.argmax(abs(coefficients), axis=0)
                 maxfreq = maxfreq_idx.copy().astype('float')
                 for i, f in enumerate(frequencies):
-                    np.put(maxfreq, np.where(maxfreq_idx == i), [f])
-
-                cols_coeff = pd.DataFrame(np.stack((abs(coefficients)), axis=1), columns=[f'{col}_cwt%02d'% scl for scl in scales])
+                    np.put(maxfreq, np.where(maxfreq_idx == i), [np.round(f,2)]) # edited
+                # edited
                 maxfreq_df = pd.DataFrame(maxfreq, columns=[f'{col}_maxfreq'])
-
-                PG_new = pd.concat([PG_new, cols_coeff, maxfreq_df], axis=1)
+                if 'velocity' in col or 'negskew' in col:
+                    cols_coeff = pd.DataFrame(np.stack((abs(coefficients)), axis=1), columns=[f'{col}_cwt%03.2f'% fr for fr in np.round(frequencies, 2)]) # type: ignore
+                    PG_new = pd.concat([PG_new, cols_coeff, maxfreq_df], axis=1)
+                else:
+                    PG_new = pd.concat([PG_new, maxfreq_df], axis=1)
 
 
             ### encode angular columns as cos sin
             deg_cols = PG_new.filter(regex='arctan$|arccos$').columns
-            cos_ = encode_cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
-            sin_ = encode_sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
+            #cos_ = encode_cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
+            #sin_ = encode_sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
             ### concat encoded columns, drop angular columns # for ease of distance and mean calculation
-            PG_new = pd.concat([PG_new, cos_, sin_], axis=1).drop(deg_cols, axis=1)
+            #PG_new = pd.concat([PG_new, cos_, sin_], axis=1)
+            PG_new = PG_new.drop(deg_cols, axis=1)
 
             ### calculate means of the basal columns (not cwt or maxfreq)
-            col_basic = PG_new.columns.drop(list(PG_new.filter(regex='cwt|maxfreq').columns))
-            PG_new = pd.concat([PG_new, PG_new[col_basic].rolling(window=60, min_periods=1, center=True).mean().add_suffix(f"_mean")], axis=1)
+            #col_basic = PG_new.columns.drop(list(PG_new.filter(regex='cwt|maxfreq').columns))
+            #PG_new = pd.concat([PG_new, PG_new[col_basic].rolling(window=60, min_periods=1, center=True).mean().add_suffix(f"_mean")], axis=1)
 
             ### set index to original split
             PG_new = PG_new.set_index(pd.Index(range(on,off)), drop=True)

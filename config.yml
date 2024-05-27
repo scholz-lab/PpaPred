@@ -1,6 +1,6 @@
 settings:
-    'model': '/gpfs/soma_fs/home/boeger/PpaPred_builder/ML/XGB/XGBBestModel_22984669_20240320/ClfBestModel_20240320.pickle' #'/gpfs/soma_fs/scratch/src/boeger/model/ForagingPredictionModel_1-1.pickle'
-    'ASpath': '/gpfs/soma_fs/home/boeger/PpaPred_builder/ML/XGB/XGBBestModel_22984669_20240320/AugmentSelect_22984669_20240320.pickle' #"/gpfs/soma_fs/scratch/src/boeger/model/AugmentSelect_1-1.pickle"
+    'model': '/gpfs/soma_fs/home/boeger/PpaPred_builder/ML/XGBBestModel_35727184_20240515/XGBBestModel_20240515.pickle' #'/gpfs/soma_fs/scratch/src/boeger/model/ForagingPredictionModel_1-1.pickle'
+    'ASpath': '/gpfs/soma_fs/home/boeger/data/builder/new_features/dataset_cluster/20240514_Clustering00_6clusters/Preprocessing.pickle' #"/gpfs/soma_fs/scratch/src/boeger/model/AugmentSelect_1-1.pickle"
     'fbfill': 30 #in frames == 1 sec, with fps = 30
     'fps': 30
     'skip_already': False
@@ -12,34 +12,22 @@ cluster_names:
     3: 3
     4: 4
     5: 5
-    6: 6
-    7: 7
-    8: 8
-    9: 9
 cluster_color:
   -1: '#dbdbdb'
   0: '#BB0A21'
   1: '#FF680A'
   2: '#ffa047'
-  3: '#ffb400'
-  4: '#b5cf66'
-  5: '#00665c'
-  6: '#008f6b'
-  7: '#00b88a'
-  8: '#6b1e5a'
-  9: '#a24d91'
+  3: '#0B305E'
+  4: '#6B0F67'
+  5: '#a24d91'
 cluster_group_man:
   -1: None
   0: pred. feed
   1: pred. bite 
-  2: pred. bite 2? 
-  3: pred. search?
-  4: arousal
-  5: quiescence? 
-  6: basal? dwelling?  
-  7: dwelling?
-  8: dwelling? roaming?
-  9: roaming
+  2: pred. search
+  3: dwelling 
+  4: exploration
+  5: roaming
 manual_colors:
   -1: k
   0: '#DBDBDB'
