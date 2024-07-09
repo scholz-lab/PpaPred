@@ -26,8 +26,8 @@ cluster_group_man:
   1: pred. bite 
   2: pred. search
   3: dwelling 
-  4: exploration
-  5: roaming
+  4: roaming
+  5: search
 manual_colors:
   -1: k
   0: '#DBDBDB'

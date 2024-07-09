@@ -16,7 +16,7 @@ def setup_logger(name, filename, level=logging.INFO, logformat ='%(asctime)s %(l
 def makedir(dirname, basepath = ''):
     dirpath = os.path.join(basepath, dirname)
     if not os.path.exists(dirpath):
-        os.mkdir(dirpath)
+        os.makedirs(dirpath, exist_ok=True)
     return dirpath
 
 def str_var(args):

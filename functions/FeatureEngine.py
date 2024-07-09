@@ -57,14 +57,14 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
     
     XYs, CLines = {},{}
     for fn in tqdm.tqdm(data):
-        logger.info(f"\nfeature calculation for {fn}")
+        logger.info(f"feature calculation for {fn}")
         name = fn.split(".")[0]
 
         ### CLine_Concat is necessary as long as result files are in csv file format
         if fn.endswith('csv'):
             PG = pd.read_csv(data[fn])
             if not 'Centerline' in PG.columns:# or 'reversals_nose' not in PG.columns:
-                logger.debug('!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO')
+                logger.debug(f'!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO\n')
                 continue
             CLine = proc.prepCL_concat(PG, "Centerline")
         if fn.endswith('json'):
@@ -146,7 +146,7 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                 ### load original data from PharaGlow results file
                 col_org_notexist = [c not in PG_split.columns for c in col_org_data]
                 if any(col_org_notexist):
-                    logger.debug(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data')
+                    logger.debug(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data\n')
                     ### TODO make entries with nans
                     continue
     
@@ -239,6 +239,8 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
         XY_joined = np.vstack([XY_splits, np.full((len(PG) - off, *XY_splits.shape[1:]), np.nan)])
         XYs[fn] = XY_joined
         CLines[fn] = CL_joined
+    
+        logger.info(f"\n")    
     return outs, XYs, CLines
     
 def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features'):
