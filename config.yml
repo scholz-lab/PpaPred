@@ -1,17 +1,19 @@
 settings:
-    'model': '/gpfs/soma_fs/home/boeger/PpaPred_builder/ML/XGBBestModel_35727184_20240515/XGBBestModel_20240515.pickle' #'/gpfs/soma_fs/scratch/src/boeger/model/ForagingPredictionModel_1-1.pickle'
-    'ASpath': '/gpfs/soma_fs/home/boeger/data/builder/new_features/dataset_cluster/20240514_Clustering00_6clusters/Preprocessing.pickle' #"/gpfs/soma_fs/scratch/src/boeger/model/AugmentSelect_1-1.pickle"
-    'fbfill': 30 #in frames == 1 sec, with fps = 30
+    'model': '/gpfs/soma_fs/home/boeger/PpaPred_builder/ML/XGBBestModel_35727184_20240515/XGBBestModel_20240515.pickle'
+    'ASpath': '/gpfs/soma_fs/home/boeger/data/builder/new_features/dataset_cluster/20240514_Clustering00_6clusters/Preprocessing.pickle'
+    'fbfill': 30
     'fps': 30
     'skip_already': False
-cluster_names:
-    -1: -1
-    0: 0
-    1: 1
-    2: 2
-    3: 3
-    4: 4
-    5: 5
+path:
+    'PharaGlow data': '/gpfs/soma_fs/scratch/src/boeger/data_gueniz/ErenBoeger_2024'
+    'predictions': '/gpfs/soma_fs/scratch/src/boeger/PpaPred_eren_35727184/ErenBoeger_2024'
+    'analysis': '/gpfs/soma_fs/home/boeger/PpaPred/'
+    'with subfolders': True
+analysis:
+    'summaries': True # needed for batch analysis
+    'ethograms': True
+    'transitions': True
+    'trajectories': True
 cluster_color:
   -1: '#dbdbdb'
   0: '#BB0A21'
@@ -20,7 +22,8 @@ cluster_color:
   3: '#0B305E'
   4: '#6B0F67'
   5: '#a24d91'
-cluster_group_man:
+# https://coolors.co//dbdbdb-BB0A21-FF680A-ffa047-0B305E-6B0F67-a24d91
+cluster_labels:
   -1: None
   0: pred. feed
   1: pred. bite 
@@ -28,24 +31,6 @@ cluster_group_man:
   3: dwelling 
   4: roaming
   5: search
-manual_colors:
-  -1: k
-  0: '#DBDBDB'
-  1: '#0D799D'
-  2: '#FF680A'
-  3: '#BB0A21'
-  4: '#00665C'
-  5: '#FFA047'
-manual_labels:
-  -1: None
-  0: Quiescence
-  1: Smelling
-  2: Biting
-  3: Feeding
-  4: Bac_feeding
-  5: on larvae
 
-# https://coolors.co//dbdbdb-bf1b22-f27218-ff9633-00665c-0d799d-0bacc1
-# https://coolors.co//dbdbdb-bb0a21-FF680A-ffa047-00665c-0d799d-0bacc1
-# https://coolors.co//dbdbdb-BB0A21-FF680A-ffa047-00665c-0D799D-0bacc1-6B0F67-B319AB
+
     

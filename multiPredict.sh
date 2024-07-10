@@ -8,7 +8,7 @@
 
 # roca: "L147" "L157" "L176" "L118" "L119" "L156"
 
-for VARIABLE in "Exp3_tdc1_larvae" "Exp3_tyra2_larvae" "Exp3_ser2_larvae" "Exp3_tyra3_larvae" "Exp3_lgc55_larvae"  "Exp3_WT_larvae" "Exp3_ser3_larvae" "Exp3_ser6_larvae" "Exp3_octr1_larvae" 
+for VARIABLE in "Exp1_WT_larvae" "Exp1_WT_OP50"
 do
     sbatch Predict.sh $VARIABLE
 done
