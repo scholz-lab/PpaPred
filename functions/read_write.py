@@ -45,3 +45,24 @@ class NanConverter(json.JSONEncoder):
         return obj
     def encode(self, obj, *args, **kwargs):
         return super().encode(self.nan2None(obj), *args, **kwargs)
+    
+def iterable_exps(config_dict, settings_key='Settings', run_key='run', exp_key='Experiments', cond_key='conditions', control_key='control'):
+    run_exps = config_dict[settings_key][run_key]
+    if run_exps == 'All' or run_exps == 'all':
+        run_exps = list(config_dict[exp_key].keys())
+    elif isinstance(run_exps, str):
+        run_exps = [run_exps]
+    exps_include = []
+    exps_statpop = []
+    for exp in run_exps:
+        include = config_dict[exp_key][exp][cond_key]
+        if control_key in config_dict[exp_key][exp]:
+            statpop = config_dict[exp_key][exp][control_key]
+        else:
+            statpop = include[0]
+        
+        if statpop not in include:
+            include.insert(0, statpop)
+        exps_include.append(include)
+        exps_statpop.append(statpop)
+    return run_exps, exps_include, exps_statpop

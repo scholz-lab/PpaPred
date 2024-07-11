@@ -169,15 +169,15 @@ for fpath in tqdm.tqdm(all_engine):
             logger.info(f'An exeption occured: {error}')
             notpredicted.append(fn)
             continue
-
+        
         # reindex from fps=1 to original fps=30
         pred = pd.Series(pred, index=X.index, name='prediction').reindex(d.index, method='bfill', limit=29).fillna(-1) ### NEW
         proba = pd.DataFrame(proba, index=X.index, columns=[f'proba_{i}' for i in range(proba.shape[1])]).reindex(d.index, method='bfill', limit=29).fillna(0)
-
+        
         # adjust prediction
         proba_max = np.amax(proba, axis=1) ### New
-        proba_max_mean = pd.DataFrame(proba_max).rolling(smooth, min_periods=1).mean().values ### New
-        proba_low50 = np.all(proba_max_mean < .5, axis=1) ### New
+        #proba_max_mean = pd.DataFrame(proba_max).values#.rolling(smooth, min_periods=1).mean().values ### New
+        proba_low50 = proba_max < .5 ### New
         pred[proba_low50] = -1 ### NEW
         
         # output: append prediction and probaility to fpath
@@ -239,7 +239,9 @@ for fpath in tqdm.tqdm(all_predicted):
         summary.to_csv(os.path.join(out_analysis, fn_out+'summary.csv'))
     
     if transitions:
-        trans_col,fr_transition = crosstab(y[1:], y[:-1], levels=([k for k in cluster_label],[k for k in cluster_label]))
+        # y downscaled to 1 fps, which is the minimum state duration
+        y_1s = pd.DataFrame(y).rolling(30).apply(lambda s: s.mode()[0])[29::30].values.flatten()
+        trans_col,fr_transition = crosstab(y_1s[1:], y_1s[:-1], levels=([k for k in cluster_label],[k for k in cluster_label]))
         transition_df = pd.DataFrame(fr_transition, columns = trans_col[1], index=trans_col[0])
         transition_df.to_csv(os.path.join(out_analysis, fn_out+'transitions.csv'))
         transition_norm = fr_transition/fr_transition.sum(axis=0)
