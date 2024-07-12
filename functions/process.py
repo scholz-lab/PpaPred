@@ -251,7 +251,7 @@ def onoff_dict(arr_raw, labels = range(-1,4), return_duration=False, return_tran
     else:
         return arr_onoff
     
-def onoff_dict(arr_raw, labels = range(-1,4), return_duration=False, return_transitions = False, return_all = False, treatasone=True):
+def onoff_dict(arr_raw, labels = range(-1,6), return_duration=False, return_transitions = False, return_all = False, treatasone=True):
     #TODO the variable transi is better named sequence
     if not isinstance(arr_raw, list):
         arr_raw = [arr_raw]

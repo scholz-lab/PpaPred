@@ -1,5 +1,5 @@
 Settings:
-    'run': 'Exp1' # specify key from Experiments or 'All'
+    'run': 'All' # specify key from Experiments or 'All'
 Experiments:
     'Exp1':
         'control': "Exp1_WT_larvae"

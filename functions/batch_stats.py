@@ -16,7 +16,14 @@ def append_df_to_multi(dict_, level_zero, metric_multi = None, drop_index=[-1]):
     """
     Creates a multiindex DataFrame, from dictionary
     """
-    df = pd.DataFrame(dict_).droplevel(0, axis=1)
+    try:
+        df = pd.DataFrame(dict_).droplevel(0, axis=1)
+    except:
+        df = pd.DataFrame([])
+        for entry in dict_:
+            seri = pd.Series(dict_[entry], name=entry[1])
+            df = pd.concat([df, seri], axis=1)
+    
     df.columns = pd.MultiIndex.from_product([[level_zero], df.columns])
     
     for idx in drop_index:

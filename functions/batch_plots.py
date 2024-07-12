@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import dendrogram
+import matplotlib as mpl
+from matplotlib.patches import Patch
+
+from . import process as proc
 
 def sig_stars(p):
     """
@@ -129,3 +133,85 @@ def transplot(fr_transition_norm, cluster_labels, ordering=None, cmap='viridis',
     axs2.set_title(f"{label}")
     #axs2.set_title(f"transitions per sec\n{label}")
     return fig
+
+
+
+class EthogramPlotter():
+    def __init__(self, df, cluster_color, cluster_label, fps, plot_fps=None, xtick_spread = 30, multi_level=0):
+        self.df = df
+        self.fps = fps
+        self.plot_fps = fps if plot_fps is None else plot_fps
+        
+        self.cluster_color = cluster_color
+        self.cluster_label = cluster_label
+        self.xtick_spread = xtick_spread
+        
+        self.init_color()
+
+    def init_color(self):
+        colors = [c for c in self.cluster_color.values()]
+        self.cmap_cluster = mpl.colors.ListedColormap(colors, name='cluster', N=None)
+        
+    def stacked(self, data=None, ax=None, cbar = False, figsize=(4,5)):
+        if ax is None:
+            f, ax = plt.subplots(1, figsize=figsize)
+        if data is None:
+            data = self.df.copy()
+        data = data[::int(self.fps/self.plot_fps)].T
+        data = data.fillna(-1)
+        #
+        timeinsec = np.arange(data.shape[1]/self.plot_fps)
+        # set limits .5 outside true range
+        mat = ax.imshow(data, cmap=self.cmap_cluster, vmin=-1, 
+                        vmax=5, aspect='auto', extent = (min(timeinsec), max(timeinsec),0,data.shape[0]), origin='lower', interpolation='nearest')
+        #print(range(len(timeinsec))[::self.xtick_spread*self.fps])
+        ax.set_xticks(np.arange(min(timeinsec), np.max(timeinsec), self.xtick_spread))
+        if cbar:
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes('right', size='5%', pad=0.25)
+            # tell the colorbar to tick at integers
+            n_clusters = len(self.cluster_label)
+            offset = (n_clusters-1)/(n_clusters)
+            tick_locs = np.arange(-0.6,n_clusters-2,offset)#*0.6#*(n_clusters-2)/(n_clusters-1)
+            cbar = plt.colorbar(mat,cax=cax, ticks=tick_locs)#, norm=norm)#, shrink=0.5)
+            cbar.ax.set_yticklabels([c for c in self.cluster_label.values()])
+        return mat
+
+    def multi_stack(self, adaptive_figsize=(4,5), xlim=(None,None), ylim=(None,None), multi_level=0):
+        self.multi_level = multi_level
+        self.conditions = self.df.columns.get_level_values(multi_level).unique()
+        f, ax = plt.subplots(1,len(self.conditions), figsize=tuple(np.multiply(adaptive_figsize,(len(self.conditions),1))))
+        for i,cond in enumerate(self.conditions):
+            self.stacked(self.df[cond], ax[i])
+            ax[i].set_title(cond)
+        ax[0].set_ylabel('Tracks')
+        plt.setp(ax,xlim=xlim, ylim=ylim, xlabel= 'Time (s)')
+        return f
+
+    def single(self, y_column, metrics=[], smooth=30, adaptive_figsize=(20,2)):
+        plot_col = self.df[y_column].copy().dropna()
+        plot_col = plot_col[::int(self.fps/self.plot_fps)]
+        onoff = proc.onoff_dict(plot_col, labels=np.unique(plot_col))
+        timeinsec = np.arange(plot_col.shape[0]/self.plot_fps)
+        fig, axs = plt.subplots(1+len(metrics), 1, 
+                                figsize=tuple(np.multiply(adaptive_figsize,(1, 1+len(metrics)))),
+                                constrained_layout=True)
+        if not isinstance(axs,list):
+            axs = [axs]
+    
+        for c in np.unique(plot_col).astype(int):
+            axs[0].broken_barh(onoff[c],(0,1),facecolors = cluster_color[c])
+        for i,met in enumerate(metrics):
+            axs[i+1].plot(met.rolling(smooth, min_periods=0).mean(),c='k')
+        for ax in axs:
+            ax.set_xticks(np.arange(0, len(plot_col), self.xtick_spread*self.plot_fps))
+            ax.set_xticklabels(np.arange(min(timeinsec), max(timeinsec), self.xtick_spread).astype(int))
+            ax.xaxis.set_minor_locator(plt.MultipleLocator(5*self.plot_fps))
+        axs[-1].set_xlabel('sec')
+        
+        plt.legend(handles=[Patch(facecolor=cluster_color[i]) for i in np.unique(plot_col).astype(int)],
+            labels=[self.cluster_label[k] for k in np.unique(plot_col)],
+            ncol=3, loc='upper left',
+            bbox_to_anchor=(0, -0.5))
+        fig.suptitle(f'Ethogram of {y_column}',fontsize=16)
+        return fig
