@@ -38,7 +38,7 @@ def find_uncommon(*lists):
     return uncommon
 
 class StateConditionBoxplot():
-    def __init__(self, multi_df, stats_df, y_label, bonferroni, color_dict, multi_level = 0, plot_percentile=(0,100), showfliers=True, adaptive_figsize=True, figsize=(6,4)):
+    def __init__(self, multi_df, color_dict,  stats_df=None, y_label='', bonferroni=False, multi_level = 0, plot_percentile=(0,100), showfliers=True, showlegend=False, adaptive_figsize=True, cluster_label=None, figsize=(6,4)):
         self.multi_df = multi_df
         self.stats_df = stats_df
         self.plot_percentile = plot_percentile
@@ -49,9 +49,11 @@ class StateConditionBoxplot():
         self.y_label = y_label
         
         self.showfliers = showfliers
+        self.showlegend = showlegend
         self.adaptive_figsize = adaptive_figsize #True
         self.figsize = figsize #(6,4)
         self.color_dict = color_dict
+        self.cluster_label = cluster_label if cluster_label is not None else {c: c for c in color_dict.keys()}
 
         self.conditions = self.multi_df.columns.get_level_values(self.multi_level).unique()
         
@@ -62,15 +64,19 @@ class StateConditionBoxplot():
     def plot(self):
         if self.adaptive_figsize:
             self.figsize = (self.figsize[0]*len(self.conditions), self.figsize[1])
-                            
+        self.index_plot = []              
         fig, ax = plt.subplots(figsize=self.figsize)
             
         for i, cond in enumerate(self.conditions):
             for j,c in enumerate(self.multi_df.index):
-                c_ = eval(c)
+                if isinstance(c, str):
+                    c_ = eval(c)
+                else:
+                    c_ = c
+                self.index_plot.append(c_)
                 c_ = c_[0] if isinstance(c_, tuple) else c_
-                cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
-                p = cond_c_stats[self.p_to_use]
+                #cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
+                #p = cond_c_stats[self.p_to_use]
                 
                 hpos = j*len(self.conditions)+i*.8
                 
@@ -81,33 +87,69 @@ class StateConditionBoxplot():
                             patch_artist = True, boxprops={'facecolor':self.color_dict[c_]},medianprops={'color':'k'})
 
         # have to wait until all boxes are plot, to ensure alignment of annotation
-        for i, cond in enumerate(self.conditions):
-            for j,c in enumerate(self.multi_df.index):
-                c_ = eval(c)
-                c_ = c_[0] if isinstance(c_, tuple) else c_
-                cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
-                p = cond_c_stats[self.p_to_use]
-                
-                hpos = j*len(self.conditions)+i*.8
-                vpos = ax.get_ylim()[1]
-                if p < .05:
-                    ax.text(hpos, vpos,'*'*sig_stars(p), ha='left', va='bottom', rotation=45) #TODO: sort out import
-                else:
-                    ax.text(hpos, vpos,'n.s.', ha='left', va='bottom', rotation=45)
-                ax.text(hpos, vpos*1.15,'N='+str(cond_c_stats['N']),ha='center', va='bottom')
+        if self.stats_df is not None:
+            for i, cond in enumerate(self.conditions):
+                for j,c in enumerate(self.multi_df.index):
+                    if isinstance(c, str):
+                        c_ = eval(c)
+                    else:
+                        c_ = c
+                    c_ = c_[0] if isinstance(c_, tuple) else c_
+                    cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
+                    p = cond_c_stats[self.p_to_use]
+                    
+                    hpos = j*len(self.conditions)+i*.8
+                    vpos = ax.get_ylim()[1]
+                    if p < .05:
+                        ax.text(hpos, vpos,'*'*sig_stars(p), ha='left', va='bottom', rotation=45) #TODO: sort out import
+                    else:
+                        ax.text(hpos, vpos,'n.s.', ha='left', va='bottom', rotation=45)
+                    ax.text(hpos, vpos*1.15,'N='+str(cond_c_stats['N']),ha='center', va='bottom')
                     
 
         common = (find_common(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
         uncommon = (find_uncommon(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
 
-        self.xlabels = np.repeat(uncommon,len(self.color_dict)-1)
+        self.xlabels = np.repeat(uncommon,len({c: self.color_dict[c] for c in self.index_plot}))
         ax.set_xticklabels(self.xlabels, rotation=90)        
         ax.set_ylabel(self.y_label)
         
         ax.spines[['right', 'top']].set_visible(False)
         plt.title('_'.join(common),x=1.1,y=1.1)
+
+        if self.showlegend:
+            self.plot_legend()
         
         return fig
+    
+    def plot_legend(self):
+        plt.legend(handles=[Patch(facecolor=self.color_dict[i]) for i in self.index_plot],
+                   labels=[self.cluster_label[k] for k in self.index_plot],
+                   loc='upper left',
+                   bbox_to_anchor=(0, -0.5))
+    
+    def plot_groups(self, groups, normed=True):
+        # TODO: should not depend on level(1) but rather last level, also if it is the only level
+        # groups the multidf along axis 0, level 1 (states) and plots the resulting groups
+        # group values are summed up
+        if all([isinstance(l, str) for l in groups]):
+            cluster_label_rev = {v: k for k,v in self.cluster_label.items()}
+            grps_ = [[cluster_label_rev[l] for l in groups[i]] for i in range(len(groups))]
+            grps_.append([l for l in self.cluster_label if not any([l in lst for lst in grps_]) and l!=-1 and l!= self.multi_df.index.get_level_values(0).unique()[0]]) #TODO l!=1 replace
+        else:
+            grps_ = groups
+            grps_.append([l for l in self.multi_df.index.get_level_values(1).unique() if not any([l in lst for lst in grps_]) and l!=-1 and l!= self.multi_df.index.get_level_values(0).unique()[0]]) #TODO l!=1 replace
+
+        preindex = pd.DataFrame(grps_).T.unstack().droplevel(1).dropna().astype(int).sort_values()
+        multiindex = pd.MultiIndex.from_tuples(list(zip(preindex.index, preindex.values)))
+        self.multi_df.index = multiindex
+        self.multi_df = self.multi_df.groupby(level=0).sum()
+
+        if normed:
+            self.multi_df = self.multi_df/self.multi_df.sum(axis=0)
+        fig = self.plot()
+        return fig
+        
     
 def transplot(fr_transition_norm, cluster_labels, ordering=None, cmap='viridis', vmin=0, vmax=1, linked=None, label='[]'):
     fig = plt.figure()
@@ -166,15 +208,6 @@ class EthogramPlotter():
                         vmax=5, aspect='auto', extent = (min(timeinsec), max(timeinsec),0,data.shape[0]), origin='lower', interpolation='nearest')
         #print(range(len(timeinsec))[::self.xtick_spread*self.fps])
         ax.set_xticks(np.arange(min(timeinsec), np.max(timeinsec), self.xtick_spread))
-        if cbar:
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes('right', size='5%', pad=0.25)
-            # tell the colorbar to tick at integers
-            n_clusters = len(self.cluster_label)
-            offset = (n_clusters-1)/(n_clusters)
-            tick_locs = np.arange(-0.6,n_clusters-2,offset)#*0.6#*(n_clusters-2)/(n_clusters-1)
-            cbar = plt.colorbar(mat,cax=cax, ticks=tick_locs)#, norm=norm)#, shrink=0.5)
-            cbar.ax.set_yticklabels([c for c in self.cluster_label.values()])
         return mat
 
     def multi_stack(self, adaptive_figsize=(4,5), xlim=(None,None), ylim=(None,None), multi_level=0):
@@ -200,7 +233,7 @@ class EthogramPlotter():
             axs = [axs]
     
         for c in np.unique(plot_col).astype(int):
-            axs[0].broken_barh(onoff[c],(0,1),facecolors = cluster_color[c])
+            axs[0].broken_barh(onoff[c],(0,1),facecolors = self.cluster_color[c])
         for i,met in enumerate(metrics):
             axs[i+1].plot(met.rolling(smooth, min_periods=0).mean(),c='k')
         for ax in axs:
@@ -209,7 +242,7 @@ class EthogramPlotter():
             ax.xaxis.set_minor_locator(plt.MultipleLocator(5*self.plot_fps))
         axs[-1].set_xlabel('sec')
         
-        plt.legend(handles=[Patch(facecolor=cluster_color[i]) for i in np.unique(plot_col).astype(int)],
+        plt.legend(handles=[Patch(facecolor=self.cluster_color[i]) for i in np.unique(plot_col).astype(int)],
             labels=[self.cluster_label[k] for k in np.unique(plot_col)],
             ncol=3, loc='upper left',
             bbox_to_anchor=(0, -0.5))

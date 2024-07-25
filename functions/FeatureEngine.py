@@ -23,7 +23,7 @@ class Printlogger():
     def info(str):
         print(str)
 
-def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='features'):
+def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False):
     engine_done = []
     ins = {}
     outs = {}
@@ -34,10 +34,15 @@ def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='featu
             engine_done = [f for f in os.listdir(out)]
         i = 0
         for fn in os.listdir(dirIn):
-            out_fn = os.path.join(out, f"{fn.split('.')[0]}_{out_fn_suffix}.json")
+            if inpath_with_subfolders:
+                subf = os.path.basename(dirIn)
+                uniq_id = '_'.join([subf, fn])
+            else:
+                uniq_id = fn
+            out_fn = os.path.join(out, f"{uniq_id.split('.')[0]}_{out_fn_suffix}.json")
             if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done:
-                ins[fn] = os.path.join(dirIn, fn)
-                outs[fn] = out_fn
+                ins[uniq_id] = os.path.join(dirIn, fn)
+                outs[uniq_id] = out_fn
                 if break_after:
                     if i == break_after:
                         break
@@ -243,12 +248,12 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
         logger.info(f"\n")    
     return outs, XYs, CLines
     
-def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features'):
+def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False):
     if isinstance(inpath,str):
         inpath = [inpath]
     if isinstance(outpath,str):
         outpath = [outpath]
-    ins, outs = setup(inpath, outpath, skip_already, break_after=break_after, out_fn_suffix=out_fn_suffix)
+    ins, outs = setup(inpath, outpath, skip_already, break_after=break_after, out_fn_suffix=out_fn_suffix, inpath_with_subfolders=inpath_with_subfolders)
     outs, XYs, CLines = FeatureEngine(ins, outs, logger, skip_engine, fps)
     if return_XYCLine:
         return XYs, CLines

@@ -268,10 +268,11 @@ def onoff_dict(arr_raw, labels = range(-1,6), return_duration=False, return_tran
         arr_s = a[1:]
         arr = a[:-1]
 
-        transi = np.append(arr[arr != arr_s], arr[-1])
-        onset = (np.concatenate([[0],np.where([arr != arr_s])[1]+1]))
-        onnext = (np.append(np.array((onset)[1:]), [len(arr)+1]))
-        dur = (onnext)-onset
+        bool_diff = arr != arr_s
+        transi = np.append(arr[bool_diff], arr[-1])
+        onset = np.append([0],np.where(bool_diff)[0]+1)
+        onnext = np.append(np.array((onset)[1:]), [len(arr)+1])
+        dur = onnext-onset
         arr_transi.append(transi)
         arr_onset.append(onset)
         arr_onnext.append(onnext)
@@ -282,7 +283,7 @@ def onoff_dict(arr_raw, labels = range(-1,6), return_duration=False, return_tran
                 total_dur += arr_onnext[i-1][-1]
 
         for b in np.unique(a):
-            b_idx = np.where(transi == b)
+            b_idx = transi == b
             b_onoff = list(zip(onset[b_idx]+total_dur, dur[b_idx]))
             if b in arr_onoff.keys():
                 arr_onoff[b] = arr_onoff[b]+b_onoff
@@ -324,5 +325,37 @@ def ffill_bfill(arr, size):
             arr_nan = arr_filled.copy().astype(float)
             arr_nan[np.hstack([np.arange(a, o) for a, o in st_st])] = np.nan
             arr_filled = pd.DataFrame(arr_nan).fillna(method="pad", limit=fsize).fillna(method="bfill", limit=bsize).fillna(method="pad").values.flatten()
-    
     return arr_filled
+
+def safe_round_matrix(arr, axis = 1, decimals = 2):
+    arr = arr.copy()
+    if axis == 0:
+        arr = arr.T
+    # round to desired decimals
+    arr_round = np.round(arr, decimals)
+    # find rows where sum is not retained
+    not_retained_sum, = np.where(arr_round.sum(axis=1) != arr.sum(axis=1))
+    
+    for idx in not_retained_sum:
+        # calculate the value that is missing to reach original
+        missing_value = [np.round(arr[idx].sum() - arr_round[idx].sum(),decimals)]
+        print(missing_value)
+        # if missing_value is larger than the rounding step, defined by decimals, split missing value up
+        if missing_value[0] > 1*10**-decimals:
+            missing_value = [1*10**-decimals]*missing_value[0]
+        
+        # get index where it would be fairest to round up/down
+        if missing_value[0] >= 0:
+            best_remainder = np.argsort(arr[idx] - arr_round[idx])[::-1] # invert so that highest remainder is first
+        else:
+            best_remainder = np.argsort(arr[idx] - arr_round[idx]) # do not invert so that lowest remainder is first
+        
+        # add missing values to first indices in best_remainder
+        for i in range(len(missing_value)):
+            arr[idx, best_remainder[i]] += missing_value[i]
+    
+    # with added missing values, round again
+    arr_round_safe = np.round(arr,decimals)
+    if axis == 0:
+        arr_round_safe = arr_round_safe.T
+    return arr_round_safe

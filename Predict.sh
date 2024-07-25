@@ -12,8 +12,6 @@
 
 source activate sklearn-env2
 python -u predict.py -p ${1} -id $SLURM_JOB_ID
-#python -u predict.py -in '/gpfs/soma_fs/gnb/gnb9201.bak/Mariannne Roca/MR_MS_pharaglowfiles/' -p ${1} -o "/gpfs/soma_fs/scratch/src/boeger/PpaPred_roca_35727184" -id $SLURM_JOB_ID
-# python -u predict.py -in '/gpfs/soma_fs/scratch/src/hiramatsu' -p "240311_3" -o "/gpfs/soma_fs/scratch/src/boeger/PpaPred_hiramatsu_2403"
 
 mv $SLURM_JOB_ID"_predict.out" $SLURM_JOB_ID"_"${1}"_predict.out"
 mv $SLURM_JOB_ID"_predict.err" $SLURM_JOB_ID"_"${1}"_predict.err"

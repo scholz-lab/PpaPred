@@ -1,0 +1,33 @@
+Settings:
+    'run': 'Exp2_new' # specify key from Experiments or 'All'
+Experiments:
+    'Exp1_new':
+        'control': "Exp1_WT_larvae"
+        'conditions': ["Exp1_WT_larvae", "Exp1_WT_OP50"]
+    'Exp2_new':
+        'control': "Exp2_WT_larvae"
+        'conditions': ["Exp2_WT_larvae", "Exp2_tph1_larvae", "Exp2_cat2_larvae", "Exp2_tdc1_larvae", "Exp2_tbh1_larvae"]
+    'Exp3':
+        'conditions': ["Exp3_ser3_larvae", "Exp3_ser6_larvae", "Exp3_lgc55_larvae"]
+    'Exp3a':
+        'control': "Exp3_WT_larvae"
+        'conditions': ["Exp3_WT_larvae", "Exp3_tbh1_larvae", "Exp3_ser3_larvae", "Exp3_ser6_larvae", "Exp3_octr1_larvae"]
+    'Exp3b':
+        'control': "Exp3_tbh1_larvae"
+        'conditions': ["Exp3_tbh1_larvae", "Exp3_tdc1_larvae", "Exp3_tyra2_larvae", "Exp3_ser2_larvae", "Exp3_tyra3_larvae", "Exp3_lgc55_larvae"]
+    'Supp5':
+        'control': "Supp5_WT_larvae"
+        'conditions': ["Supp5_WT_larvae", "Supp5_tyramine_larvae", "Supp5_octopamine_larvae"]
+    'Supp4':
+        'control': "Exp2_WT_larvae"
+        'conditions': ["Exp2_WT_larvae", "Supp4_tbh1tdc1_larvae"]
+    'Supp4_transitions':
+        'conditions': ["Exp2_tph1_larvae", "Exp2_cat2_larvae", "Supp4_tbh1tdc1_larvae"]
+    'Supp7':
+        'control': "Exp3_WT_larvae"
+        'conditions': ["Supp7_ser2tyra2tyra3_larvae"]
+    'Supp7_transitions':
+        'conditions': ["Exp3_octr1_larvae", "Exp3_ser2_larvae", "Exp3_tyra2_larvae", "Exp3_tyra3_larvae", "Supp7_ser2tyra2tyra3_larvae"]
+
+    'Exp2_transitions':
+        'conditions': ["Exp2_WT_larvae", "Exp2_tdc1_larvae", "Exp2_tbh1_larvae"]

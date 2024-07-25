@@ -6,8 +6,8 @@ settings:
     'skip_already': False
     'overwrite batch': True
 path:
-    'PharaGlow data': '/gpfs/soma_fs/gnb/gnb9201.bak/Mariannne Roca/MR_MS_pharaglowfiles'
-    'predictions': '/gpfs/soma_fs/scratch/src/boeger/PpaPred_roca_35727184'
+    'PharaGlow data': '/gpfs/soma_fs/scratch/src/boeger/data_gueniz/ErenBoeger_2024'
+    'predictions': '/gpfs/soma_fs/scratch/src/boeger/PpaPred_eren_35727184/ErenBoeger2024_20240709' #ErenBoeger_2024
     'analysis': '/gpfs/soma_fs/home/boeger/PpaPred/'
     'with subfolders': True
 analysis:

@@ -261,10 +261,12 @@ class BatchTransitions_frommultidf():
         
     def linkage(self, method='single', metric='euclidean', optimal_ordering=True):
         # perform hierarchical linkage based on control
-        dist_mat = 1/self.normalize(self.multi_df[self.control], method=self.norm_symsum)
-        np.fill_diagonal(dist_mat.values, 0)
-        pairwise_dist = scipy.spatial.distance.squareform(dist_mat)
-        self.Z = linkage(pairwise_dist, method, metric=metric, optimal_ordering=optimal_ordering)
+        self.transitions_symsum = self.normalize(self.multi_df[self.control], method=self.norm_symsum)
+        self.transitions_symsum[self.transitions_symsum == 0] = 1e-10
+        self.dist_mat = 1/self.transitions_symsum
+        np.fill_diagonal(self.dist_mat.values, 0)
+        self.pairwise_dist = scipy.spatial.distance.squareform(self.dist_mat)
+        self.Z = linkage(self.pairwise_dist, method, metric=metric, optimal_ordering=optimal_ordering)
         return self.Z
 
     def dendrogram(self, **kwargs):

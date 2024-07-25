@@ -35,8 +35,11 @@ def str_var(args):
     return (names)
 
 def walkdir_filter(inpath, data_str, specific_patterns=None, fileendings=['csv','json']):
-    pattern_dir = [os.path.join(root, name) for root, dirs, files in os.walk(inpath) for name in dirs if data_str in name][0]
-    all_files = [os.path.join(root, name) for root, dirs, files in os.walk(pattern_dir) for name in files if any([name.endswith(suff) for suff in fileendings])]
+    pattern_dir = [os.path.join(root, name) for root, dirs, files in os.walk(inpath) for name in dirs if data_str in name]
+    #all_files = [os.path.join(root, name) for root, dirs, files in os.walk(pattern_dir) for name in files if any([name.endswith(suff) for suff in fileendings])]
+    all_files = [[os.path.join(root, name) for root, dirs, files in os.walk(pat_dir) for name in files if any([name.endswith(suff) for suff in fileendings])] for pat_dir in pattern_dir]
+    all_files = [v for lst in all_files for v in lst]
+    
     list_return = []
     if specific_patterns is None:
         return all_files

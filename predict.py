@@ -45,7 +45,7 @@ sklearn.set_config(transform_output="pandas")
 
 # %% INPUT
 parser = argparse.ArgumentParser(description="Argument Parser", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("-p", "--pattern", default=[''], nargs='+', type=str, help="Build model from pieces: scaler: MinMaxScaler, to_dask: numpy array to dask, RF: RandomForestClassifier, PCA: pca, fs_prefit: feature selection based on SelectKBest")
+parser.add_argument("-p", "--pattern", default=[''], nargs='+', type=str, help="input pattern (string): a pattern to find folder with data to predict.")
 parser.add_argument("-id", "--jobid", default='xxxxxxxxxx', type=str, help="get jobid of slurm job")
 args = vars(parser.parse_args())
 
@@ -120,7 +120,8 @@ XYs, CLines  = FeatureEngine.run(inpath,
                                  return_XYCLine = True, 
                                  skip_engine = False, 
                                  skip_already=False, 
-                                 out_fn_suffix='features')
+                                 out_fn_suffix='features',
+                                 inpath_with_subfolders=inpath_with_subfolders)
 
 all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern)]
 
@@ -151,10 +152,11 @@ for fpath in tqdm.tqdm(all_engine):
         d = load_tolist(fpath, droplabelcol=False)[0]
         
         # Data Augmentation
-        X = augsel.transform(d)
-        X = imp.fit_transform(X) # model seems to run well without
+        X = augsel.transform(d) # augmentation pipeline
+        X = imp.fit_transform(X) # simple imputer. imputes nan values
 
         # Ensure all features are in data
+        # could be redundant with except statement
         if not X.shape[1] == model.n_features_in_:
             logger.info(f'WARNING: {fn} could not be predicted! Wrong number of features: got {X.shape[1]}, expected {model.n_features_in_}')
             notpredicted.append(fn)
@@ -171,14 +173,14 @@ for fpath in tqdm.tqdm(all_engine):
             continue
         
         # reindex from fps=1 to original fps=30
+        # minimla state duration is still 1 sec
         pred = pd.Series(pred, index=X.index, name='prediction').reindex(d.index, method='bfill', limit=29).fillna(-1) ### NEW
         proba = pd.DataFrame(proba, index=X.index, columns=[f'proba_{i}' for i in range(proba.shape[1])]).reindex(d.index, method='bfill', limit=29).fillna(0)
         
         # adjust prediction
-        proba_max = np.amax(proba, axis=1) ### New
-        #proba_max_mean = pd.DataFrame(proba_max).values#.rolling(smooth, min_periods=1).mean().values ### New
-        proba_low50 = proba_max < .5 ### New
-        pred[proba_low50] = -1 ### NEW
+        proba_max = np.amax(proba, axis=1) # probability should be same value over 30 frames / 1 sec
+        proba_low50 = proba_max < .5 # find low probability predictions
+        pred[proba_low50] = -1 # set predictions with low probability to -1 / None
         
         # output: append prediction and probaility to fpath
         p_out = pd.concat([d, pred, proba], axis=1) #d, 
