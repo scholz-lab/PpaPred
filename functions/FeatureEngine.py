@@ -113,40 +113,44 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
             
             ### feature calculation #####################################################################################
             if not skip_engine:
-                ### calculates the vectors, their length and their inbetween angles of all centerline coordinates
-                #length, _, CLArctan = proc.angle(CLine_split[:,::np.ceil(CLine_split.shape[1]/34).astype(int)])
-                ### calculates the overall summed length of the pharynx
-                #SumLen = np.sum(length, axis=1)
-                ### calculates the curvature of the pharynx
-                #Curvature = al.TotalAbsoluteCurvature(CLArctan, length)
-    
-                # edited
                 ### vectors and angle between nosetip, defined as first 5 CLine_split points, and center of mass
                 _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
-                #_, tip2tip_arccos, _ =  al.AngleLen(adjustCL_split[:,0], hypotenuse = "v1", over="frames")
-                #_, tip2tipMv_arccos, _ = al.AngleLen(adjustCL_split, adjustCL_split[:,0], hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
-                #angspeed_nose_sec = al.angular_vel_dt(tip2tip_arccos, dt=1)
-                
-                # New
-                #_, nose2nose_arccos, _ = al.AngleLen(adjustCL_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[30,0]), v2_args=dict(diffindex=[30,0]))
 
-                ### calculate reversal, as over 120deg 
-                reversal_bin = np.where(tip2cm_arccos >= np.deg2rad(120), 1, 0)
+                # anterior vs posterior part
+                _, tip2back_arccos, _ = al.AngleLen(adjustCL_split, adjustCL_split, hypotenuse = "v1", over="space", v2_over='space', v1_args=dict(diffindex=[40,10]),v2_args=dict(diffindex=[-10,60]))
+                # cm vs cm over time
+                _, cl2cl_arccos_dt30, _ = al.AngleLen(adjustCL_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[-10,10]), v2_diff=30)
+
+                # pharynx vs cm over time
+                _, movedir, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over='space', v1_args=dict(diffindex=[-10,10]))
+                reversal_bin = np.where(pd.DataFrame(movedir).rolling(10).mean() >= np.deg2rad(120), 1, 0)
                 reversal_events = np.clip(np.diff(reversal_bin, axis=0), 0, 1)
                 reversal_rate = pd.Series(reversal_events.squeeze()).rolling(30, center=True).apply(lambda w: np.mean(w)*30)
-    
+
+                # assume that v2 (cm vector) is hypotenuse, makes sideways headmotion vector more realistic
+                # pharynx vs cm over time, with sin calculated
+                headmotion, leftright, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v2", over='space', v2_args=dict(diff_step=1), angletype=np.arcsin)
+                leftright_abs_smooth = abs(pd.DataFrame(leftright).rolling(30).mean())
+
     
                 # edited
                 ### reshapes all features to fit the original
-                tip2cm_arccos, reversal_rate, = al.extendtooriginal((
+                tip2cm_arccos, tip2back_arccos, cl2cl_arccos_dt30, movedir, reversal_bin, reversal_rate, headmotion, leftright_abs_smooth = al.extendtooriginal((
                                                                     tip2cm_arccos,
-                                                                    reversal_rate,), 
+                                                                    tip2back_arccos, 
+                                                                    cl2cl_arccos_dt30, 
+                                                                    movedir, 
+                                                                    reversal_bin, 
+                                                                    reversal_rate, 
+                                                                    headmotion, 
+                                                                    leftright_abs_smooth
+                                                                    ), 
                                                                     (adjustCL_split.shape[0],1))
 
                 # edited
                 # hstack all calculated features 
-                new_data = pd.DataFrame(np.hstack((tip2cm_arccos, reversal_rate)), 
-                                        columns=['tip2cm_arccos','reversal_rate'])
+                new_data = pd.DataFrame(np.hstack((tip2cm_arccos, tip2back_arccos, cl2cl_arccos_dt30, movedir, reversal_bin, reversal_rate, headmotion, leftright_abs_smooth )), 
+                                        columns=['tip2cm_arccos', 'tip2back_arccos', 'cl2cl_arccos_dt30', 'movedir', 'reversal_bin', 'reversal_rate', 'headmotion', 'leftright_abs_smooth'])
         
                 ### load original data from PharaGlow results file
                 col_org_notexist = [c not in PG_split.columns for c in col_org_data]
@@ -161,7 +165,6 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                 PG_new['velocity'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=30)
                 PG_new['velocity_mean'] = PG_new['velocity'].rolling(window=60, min_periods=1).mean()
                 PG_new['velocity_dt60'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=60)
-                # new
                 PG_new['velocity_dt150'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=150)
     
                 ### Calculating smooth, freq and amplitude for all columns
@@ -190,17 +193,10 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                         PG_new = pd.concat([PG_new, maxfreq_df], axis=1)
 
         
-                # edited
-                # encode angular columns as cos sin
-                # take rolling circular mean
-                deg_cols = PG_new.filter(regex='arccos$').columns
-                #cos_ = np.cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
-                #cos_ = cos_.rolling(60, min_periods=1, center=True).mean()
-                #sin_ = np.sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
-                #sin_ = sin_.rolling(60, min_periods=1, center=True).mean()
-                ### concat encoded columns, drop angular columns # for ease of distance and mean calculation
-                #PG_new = pd.concat([PG_new, cos_, sin_], axis=1)
-                PG_new = PG_new.drop(deg_cols, axis=1)
+                # TODO: drop angular columns or make sure during feature selection those are dropped!
+                # drop arccos   
+                #deg_cols = PG_new.filter(regex='arccos$').columns
+                #PG_new = PG_new.drop(deg_cols, axis=1)
 
                 ### set index to original split
                 PG_new = PG_new.set_index(pd.Index(range(on,off)), drop=True)

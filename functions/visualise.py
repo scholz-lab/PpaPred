@@ -146,16 +146,17 @@ def ethogram_only_plotter(y, onoff, cluster_color, figsize=(20,2), fps=30,xtick_
 
 def CLtrajectory_plotter(CLine, XY, cluster_color=['k'], cluster_label=[0], y = None, fn='', figsize=(10,10)):
     fig, ax = plt.subplots(figsize=figsize)
-    legend_elements = [Line2D([0], [0],color=cluster_color[i], label=cluster_label [i]) for i in cluster_label]
+    
     adjustCL = (CLine-np.nanmean(CLine))+np.repeat(XY.reshape(XY.shape[0],1,XY.shape[1]), CLine.shape[1], axis=1)# fits better than subtracting 50
     adjustXY = XY-np.nanmean(XY, axis=0)
     if y is not None:
+        legend_elements = [Line2D([0], [0],color=cluster_color[i], label=cluster_label [i]) for i in cluster_label]
         for l in np.unique(y).astype(int):
             il = np.where(y == l)[0]
             ax.plot(*adjustCL[il].T, c=cluster_color[l], alpha = 0.1)
+        ax.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1,1))
     else:
         ax.plot(*adjustCL.T, c=cluster_color[0], alpha = 0.1)
     ax.set_title(fn)
     ax.axis('equal')
-    ax.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1,1))
     return fig
