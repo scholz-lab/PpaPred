@@ -22,11 +22,11 @@ def unitvector(xyarray, diff_step = 1):
             - vlen (np.ndarray): Vector lengths for each coordinate.
             - base (np.ndarray): Differences between consecutive coordinates.
     """
-    base = np.diff(xyarray, axis=0, n=diff_step)
+    base = xyarray[diff_step:] - xyarray[:-diff_step]
     vlen = np.linalg.norm(base, axis = 1).reshape(base.shape[0],1)
     unit_vec = np.divide(base,vlen)
     unit_vec = np.nan_to_num(unit_vec)
-    return unit_vec, vlen, base
+    return unit_vec, vlen/diff_step, base
 
 def unitvector_space(xyarray, diffindex=[0,-1]):
     """
@@ -48,7 +48,7 @@ def unitvector_space(xyarray, diffindex=[0,-1]):
     return unit_vec, vlen, base
 
 
-def AngleLen (v1, v2=None, hypotenuse = "v1", over="frames", v2_over = 'frames', v1_args={}, v2_args={}, v2_diff = 1):
+def AngleLen (v1, v2=None, hypotenuse = "v1", over="frames", v2_over = 'frames', v1_args={}, v2_args={}, v2_diff = 1, angletype=np.arccos):
     """
     Computes the length of the difference vector and the angle between two vectors.
 
@@ -76,17 +76,18 @@ def AngleLen (v1, v2=None, hypotenuse = "v1", over="frames", v2_over = 'frames',
         v2_unit, v2_len, v1_diff = v1_unit[v2_diff:], v1_len[v2_diff:], v1_diff[v2_diff:]
     
     hyp = {"v1":v1_len, "v2":v2_len}
-    hyplen = hyp[hypotenuse]
+    hypo_len = hyp[hypotenuse]
+    adjecent_len = hyp[[k for k in hyp.keys() if k != hypotenuse][0]]
     
     crop = min(len(v1_unit), len(v2_unit))
-    #x1, y1, x2, y2 = v1_unit[:crop,0], v1_unit[:crop,1], v2_unit[:crop,0], v2_unit[:crop,1]
+    
     dotProduct = v1_unit[:crop,0]*v2_unit[:crop,0] +v1_unit[:crop,1]*v2_unit[:crop,1]
-    arccos = np.arccos(dotProduct) # mod of Vector is 1, so /mod can be left away  #arccos
-    #arcsin = np.arcsin(dotProduct)
+    arccos = angletype(dotProduct) # mod of Vector is 1, so /mod can be left away  #arccos
     
-    difflen = np.multiply(np.sin(arccos[:crop]).flatten(),hyplen[:crop].flatten())
+    # calculate length of opposite of calculated angle: diveregence from v2 (cm) vector
+    opposite_len = np.multiply(hypo_len[:crop].flatten(), abs(np.sin(arccos[:crop]))) 
     
-    return difflen, arccos, v1_diff
+    return opposite_len, arccos, v1_diff
 
 def AngleLenArcTan (v1, v2=None, hypotenuse = "v1", over="frames",**args):
     if over == "frames":

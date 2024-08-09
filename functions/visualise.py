@@ -143,18 +143,18 @@ def ethogram_only_plotter(y, onoff, cluster_color, figsize=(20,2), fps=30,xtick_
           bbox_to_anchor=(0, -0.5))
     fig.suptitle(f'Ethogram of {fn}',fontsize=16)
     return fig
-    
-def CLtrajectory_plotter(CLine, XY, y, cluster_color, cluster_label, figsize=(10,10)):
-    fig, ax = plt.subplots(figsize=(10,10))
+
+def CLtrajectory_plotter(CLine, XY, cluster_color=['k'], cluster_label=[0], y = None, fn='', figsize=(10,10)):
+    fig, ax = plt.subplots(figsize=figsize)
     legend_elements = [Line2D([0], [0],color=cluster_color[i], label=cluster_label [i]) for i in cluster_label]
-    adjustCL = (CLine-np.nanmean(CLine))+np.repeat(XY.reshape(XY.shape[0],1,XY.shape[1]), CLine.shape[1], axis=1)-np.nanmean(XY, axis=0)# fits better than subtracting 50
+    adjustCL = (CLine-np.nanmean(CLine))+np.repeat(XY.reshape(XY.shape[0],1,XY.shape[1]), CLine.shape[1], axis=1)# fits better than subtracting 50
     adjustXY = XY-np.nanmean(XY, axis=0)
-    for l in np.unique(y).astype(int):
-    #for l in [2,3,5,8]:#[1,2,6,7]#[2,3,5,8]
-        #if l != 6:
-        il = np.where(y == l)[0]
-        ax.plot(*adjustCL[il].T, c=cluster_color[l], alpha = 0.1)#cluster_color[l]
-            #plt.scatter(XY[:,0][il],XY[:,1][il], marker=".", lw=2, c=bar_c[l], alpha=0.1)
+    if y is not None:
+        for l in np.unique(y).astype(int):
+            il = np.where(y == l)[0]
+            ax.plot(*adjustCL[il].T, c=cluster_color[l], alpha = 0.1)
+    else:
+        ax.plot(*adjustCL.T, c=cluster_color[0], alpha = 0.1)
     ax.set_title(fn)
     ax.axis('equal')
     ax.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1,1))

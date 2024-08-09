@@ -1,6 +1,8 @@
 Settings:
-    'run': 'prelim' # specify key from Experiments or 'All'
+    'run': 'WTvsmec6' # specify key from Experiments or 'All'
 Experiments:
     'prelim':
         #'control': "Exp1_WT_larvae"
         'conditions': ["L147", "L157", "L176", "L118", "L119", "L156", "L158", "L159", "L185", "L187"]
+    'WTvsmec6':
+        'conditions': ["L147", "L176"]
