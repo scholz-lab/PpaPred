@@ -131,11 +131,11 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                 # pharynx vs cm over time, with sin calculated
                 headmotion, leftright, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v2", over='space', v2_args=dict(diff_step=1), angletype=np.arcsin)
                 leftright_abs_smooth = abs(pd.DataFrame(leftright).rolling(30).mean())
-
+                headvelocity = abs(headmotion[:-1] - headmotion[1:])/(1/30)
     
                 # edited
                 ### reshapes all features to fit the original
-                tip2cm_arccos, tip2back_arccos, cl2cl_arccos_dt30, movedir, reversal_bin, reversal_rate, headmotion, leftright_abs_smooth = al.extendtooriginal((
+                tip2cm_arccos, tip2back_arccos, cl2cl_arccos_dt30, movedir, reversal_bin, reversal_rate, headmotion, headvelocity, leftright_abs_smooth = al.extendtooriginal((
                                                                     tip2cm_arccos,
                                                                     tip2back_arccos, 
                                                                     cl2cl_arccos_dt30, 
@@ -143,14 +143,15 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                                                                     reversal_bin, 
                                                                     reversal_rate, 
                                                                     headmotion, 
+                                                                    headvelocity, 
                                                                     leftright_abs_smooth
                                                                     ), 
                                                                     (adjustCL_split.shape[0],1))
 
                 # edited
                 # hstack all calculated features 
-                new_data = pd.DataFrame(np.hstack((tip2cm_arccos, tip2back_arccos, cl2cl_arccos_dt30, movedir, reversal_bin, reversal_rate, headmotion, leftright_abs_smooth )), 
-                                        columns=['tip2cm_arccos', 'tip2back_arccos', 'cl2cl_arccos_dt30', 'movedir', 'reversal_bin', 'reversal_rate', 'headmotion', 'leftright_abs_smooth'])
+                new_data = pd.DataFrame(np.hstack((tip2cm_arccos, tip2back_arccos, cl2cl_arccos_dt30, movedir, reversal_bin, reversal_rate, leftright_abs_smooth, headmotion, headvelocity)), 
+                                        columns=['tip2cm_arccos', 'tip2back_arccos', 'cl2cl_arccos_dt30', 'movedir', 'reversal_bin', 'reversal_rate', 'leftright_abs_smooth', 'headmotion', 'headvelocity'])
         
                 ### load original data from PharaGlow results file
                 col_org_notexist = [c not in PG_split.columns for c in col_org_data]
