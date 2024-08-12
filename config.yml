@@ -1,6 +1,6 @@
 settings:
-    'model': '/gpfs/soma_fs/home/boeger/PpaPred_builder/ML/XGBBestModel_35727184_20240515/XGBBestModel_20240515.pickle'
-    'ASpath': '/gpfs/soma_fs/home/boeger/data/builder/new_features/dataset_cluster/20240514_Clustering00_6clusters/Preprocessing.pickle'
+    'model': '/gpfs/soma_fs/scratch/src/boeger/model/PpaPred_35727184_model.pickle'
+    'ASpath': '/gpfs/soma_fs/scratch/src/boeger/model/PpaPred_35727184_preprocessing.pickle'
     'fbfill': 30
     'fps': 30
     'skip_already': False
