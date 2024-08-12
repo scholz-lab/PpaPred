@@ -3,7 +3,8 @@
 
 #### Steps:
 1. Download git repository:<br>
-`git clone git@github.com:scholz-lab/PpaPred.git`
+with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`
+or https: `git clone https://github.com/scholz-lab/PpaPred.git`
 
 2. Install environmnet:<br>
 `conda env create -f requirements.txt -n PpaPred`

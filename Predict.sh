@@ -10,7 +10,7 @@
 #SBATCH --time=0-05:00:00
 #SBATCH --mem=0
 
-source activate sklearn-env2
+source activate PpaPred
 python -u predict.py -p ${1} -id $SLURM_JOB_ID
 
 mv $SLURM_JOB_ID"_predict.out" $SLURM_JOB_ID"_"${1}"_predict.out"
