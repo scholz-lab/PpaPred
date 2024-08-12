@@ -1,6 +1,6 @@
 Settings:
-    'run': 'prelim' # specify key from Experiments or 'All'
+    'run': 'Exp' # specify key from Experiments or 'All'
 Experiments:
-    'prelim':
-        #'control': "Exp1_WT_larvae"
-        'conditions': ["L147", "L157", "L176", "L118", "L119", "L156", "L158", "L159", "L185", "L187"]
+    'Exp':
+        'control': "Cond B" # if not specified: first row conditions is used
+        'conditions': ["Cond A", "Cond B", "Cond C"]

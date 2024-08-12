@@ -6,14 +6,14 @@ settings:
     'skip_already': False
     'overwrite batch': True
 path:
-    'PharaGlow data': '/gpfs/soma_fs/gnb/gnb9201.bak/Mariannne Roca/MR_MS_pharaglowfiles'
-    'predictions': '/gpfs/soma_fs/scratch/src/boeger/PpaPred_roca_35727184'
-    'analysis': '/gpfs/soma_fs/home/boeger/PpaPred/'
+    'PharaGlow data': '' # path to PharaGlow data
+    'predictions': '/gpfs/soma_fs/scratch/src/' # path to where predictions should be saved
+    'analysis': '' # path to where batch analysis should be saved
     'with subfolders': True
 analysis:
     'summaries': True # needed for batch analysis
     'ethograms': True
-    'transitions': True
+    'transitions': True # needed for batch analysis
     'trajectories': True
 plot_settings:
     'percentiles': (0,100)
