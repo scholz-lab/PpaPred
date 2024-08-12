@@ -3,13 +3,13 @@
 
 #### Steps:
 1. Download git repository:<br>
-with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`
+with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`<br>
 or https: `git clone https://github.com/scholz-lab/PpaPred.git`
 
 2. Install environmnet:<br>
 `conda env create -f requirements.txt -n PpaPred`
 
-3. Edit config and config_bath files, to specifiy path to your PharaGlow files, etc.
+3. Edit config and config_batch files, to specifiy path to your PharaGlow files, etc.
 
 4. predict files from your terminal...<br>
     a. either individually without slurm:<br>
@@ -17,10 +17,10 @@ or https: `git clone https://github.com/scholz-lab/PpaPred.git`
         `python -u predict.py -p "pattern"`<br>
     b. individually with slurm:<br>
         `sbatch Predict.sh "pattern"`<br>
-    c. or multiple with a slurm scripts (edit multiPredict.sh by providing name patterns of folders)<br>
+    c. or multiple with slurm script (edit multiPredict.sh by providing name patterns of folders)<br>
     c. `sh multiPredict.sh`
 
-#### If you want to use the provided jupyter notebooks for batch analysis:
+#### If you want to use the provided jupyter notebook for batch analysis:
 
 1. Activate ipykernel for env (only once):<br>
     `conda activate PpaPred` or `source activate PpaPred`<br>
