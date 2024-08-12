@@ -11,12 +11,10 @@ import matplotlib.pylab as plt
 
 sys.path.append(os.getcwd())
 import functions.process as proc
-import functions.waveletTransform as wt
 import functions.algebra as al
 from functions.io import makedir
 
 sys.path.append(os.path.expanduser("~"))
-from PpaPy.calculate.descriptive import velocity
 
 ## Settings and load data
 class Printlogger():
@@ -113,23 +111,9 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
             
             ### feature calculation #####################################################################################
             if not skip_engine:
-                ### calculates the vectors, their length and their inbetween angles of all centerline coordinates
-                #length, _, CLArctan = proc.angle(CLine_split[:,::np.ceil(CLine_split.shape[1]/34).astype(int)])
-                ### calculates the overall summed length of the pharynx
-                #SumLen = np.sum(length, axis=1)
-                ### calculates the curvature of the pharynx
-                #Curvature = al.TotalAbsoluteCurvature(CLArctan, length)
-    
-                # edited
                 ### vectors and angle between nosetip, defined as first 5 CLine_split points, and center of mass
                 _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
-                #_, tip2tip_arccos, _ =  al.AngleLen(adjustCL_split[:,0], hypotenuse = "v1", over="frames")
-                #_, tip2tipMv_arccos, _ = al.AngleLen(adjustCL_split, adjustCL_split[:,0], hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
-                #angspeed_nose_sec = al.angular_vel_dt(tip2tip_arccos, dt=1)
                 
-                # New
-                #_, nose2nose_arccos, _ = al.AngleLen(adjustCL_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[30,0]), v2_args=dict(diffindex=[30,0]))
-
                 ### calculate reversal, as over 120deg 
                 reversal_bin = np.where(tip2cm_arccos >= np.deg2rad(120), 1, 0)
                 reversal_events = np.clip(np.diff(reversal_bin, axis=0), 0, 1)
@@ -158,11 +142,11 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
     
                 ### combine new and original features in one Df
                 PG_new = pd.concat([PG_split[col_org_data], new_data], axis=1)
-                PG_new['velocity'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=30)
+                PG_new['velocity'] = proc.velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=30)
                 PG_new['velocity_mean'] = PG_new['velocity'].rolling(window=60, min_periods=1).mean()
-                PG_new['velocity_dt60'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=60)
+                PG_new['velocity_dt60'] = proc.velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=60)
                 # new
-                PG_new['velocity_dt150'] = velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=150)
+                PG_new['velocity_dt150'] = proc.velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=150)
     
                 ### Calculating smooth, freq and amplitude for all columns
                 for col in  PG_new.columns:
@@ -170,12 +154,12 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                         _scale = negskew_scale
                     else:
                         _scale = scales
-                    lowpass_d = wt.lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
+                    lowpass_d = proc.lowpassfilter(PG_new[col].fillna(0).values/PG_new[col].mean(), 0.01)
                     lowpass_toolarge = PG_new.shape[0]-lowpass_d.shape[0]
                     if lowpass_toolarge < 0:
                         lowpass_d = lowpass_d[:lowpass_toolarge] 
     
-                    coefficients, frequencies = wt.cwt_signal(lowpass_d, _scale)#rec[:-1]
+                    coefficients, frequencies = proc.cwt_signal(lowpass_d, _scale)#rec[:-1]
                     maxfreq_idx = np.argmax(abs(coefficients), axis=0)
                     maxfreq = maxfreq_idx.copy().astype('float')
                     for i, f in enumerate(frequencies):

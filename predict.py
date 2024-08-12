@@ -28,12 +28,11 @@ import argparse
 # custom imports
 sys.path.append(os.path.expanduser('~'))
 sys.path.append(os.getcwd())
-from functions.load_model import load_tolist
 import functions.process as proc
 from functions.io import setup_logger, makedir
-from functions.read_write import NpIntEncoder
+from functions.read_write import NpIntEncoder, load_tolist
 from functions import FeatureEngine
-from functions.plots_prediction import ethogram_plotter, CLtrajectory_plotter, transition_plotter
+from PpaPred.functions.old.plots_prediction import ethogram_plotter, CLtrajectory_plotter, transition_plotter
  
 # %% SETTINGS
 # set invalid (division by zero error) to ignore
