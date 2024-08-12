@@ -1,0 +1,17 @@
+
+# ignore all logs
+*.log
+*.err
+*.out
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# config files
+config.yml
+config_batch.yml
