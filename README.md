@@ -3,8 +3,7 @@
 
 #### Steps:
 1. Download git repository:<br>
-with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`<br>
-or https: `git clone https://github.com/scholz-lab/PpaPred.git`
+with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`
 
 2. Install environmnet:<br>
 `conda env create -f requirements.txt -n PpaPred`
@@ -31,3 +30,8 @@ or https: `git clone https://github.com/scholz-lab/PpaPred.git`
 3. Connect to jupyter notebook and run BatchAnalysis_combined.ipynb step by step.<br>
 
 ### Happy Predicting :D
+
+If you want to pull changes from origin, you might encounter problems with BatchAnalysis_combined.ipynb. This is likely due to the output generated in this file. The easiest solution for this is to stash changes before pull.<br>
+`git stash`<br>
+`git pull`<br>
+`git stash pop`<br>
