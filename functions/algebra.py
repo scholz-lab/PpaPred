@@ -87,3 +87,9 @@ def AngleLen (v1, v2=None, hypotenuse = "v1", over="frames", v2_over = 'frames',
     difflen = np.multiply(np.sin(arccos[:crop]).flatten(),hyplen[:crop].flatten())
     
     return difflen, arccos, v1_diff
+
+def angle2vec(nose_unit_frames, nose_unit_space):
+    crop = min(len(nose_unit_frames), len(nose_unit_space))
+    dot_noses = nose_unit_frames[:crop,0]*nose_unit_space[:crop,0] +nose_unit_frames[:crop,1]*nose_unit_space[:crop,1]
+    angle_noses = np.arccos(dot_noses) # mod of Vector is 1, so /mod can be left away
+    return angle_noses

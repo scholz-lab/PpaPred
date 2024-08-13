@@ -32,7 +32,7 @@ import functions.process as proc
 from functions.io import setup_logger, makedir
 from functions.read_write import NpIntEncoder, load_tolist
 from functions import FeatureEngine
-from PpaPred.functions.old.plots_prediction import ethogram_plotter, CLtrajectory_plotter, transition_plotter
+from functions.plots import ethogram_plotter, CLtrajectory_plotter, transition_plotter
  
 # %% SETTINGS
 # set invalid (division by zero error) to ignore
