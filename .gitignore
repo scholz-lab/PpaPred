@@ -15,3 +15,6 @@ __pycache__/
 # config files
 config.yml
 config_batch.yml
+
+# changing slurm scripts
+multiPredict.sh
