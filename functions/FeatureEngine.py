@@ -21,7 +21,7 @@ class Printlogger():
     def info(str):
         print(str)
 
-def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False):
+def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv'):
     engine_done = []
     ins = {}
     outs = {}
@@ -38,7 +38,7 @@ def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='featu
             else:
                 uniq_id = fn
             out_fn = os.path.join(out, f"{uniq_id.split('.')[0]}_{out_fn_suffix}.json")
-            if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done:
+            if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done and fn.endswith(file_extension):
                 ins[uniq_id] = os.path.join(dirIn, fn)
                 outs[uniq_id] = out_fn
                 if break_after:
@@ -232,12 +232,12 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
         logger.info(f"\n")    
     return outs, XYs, CLines
     
-def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False):
+def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv'):
     if isinstance(inpath,str):
         inpath = [inpath]
     if isinstance(outpath,str):
         outpath = [outpath]
-    ins, outs = setup(inpath, outpath, skip_already, break_after=break_after, out_fn_suffix=out_fn_suffix, inpath_with_subfolders=inpath_with_subfolders)
+    ins, outs = setup(inpath, outpath, skip_already, break_after=break_after, out_fn_suffix=out_fn_suffix, inpath_with_subfolders=inpath_with_subfolders, file_extension=file_extension)
     outs, XYs, CLines = FeatureEngine(ins, outs, logger, skip_engine, fps)
     if return_XYCLine:
         return XYs, CLines

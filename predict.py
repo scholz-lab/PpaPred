@@ -67,6 +67,7 @@ fps = config['settings']['fps']
 inpath = config['path']['PharaGlow data']
 outpath = config['path']['predictions']
 inpath_with_subfolders = config['path']['with subfolders']
+file_extension = 'csv'
 
 # plots
 summaries = config['analysis']['summaries']
@@ -120,6 +121,7 @@ XYs, CLines  = FeatureEngine.run(inpath,
                                  skip_engine = False, 
                                  skip_already=False, 
                                  out_fn_suffix='features',
+                                 file_extension=file_extension,
                                  inpath_with_subfolders=inpath_with_subfolders)
 
 all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern)]
