@@ -199,8 +199,8 @@ def safe_round_matrix(arr, axis = 1, decimals = 2):
         missing_value = [np.round(arr[idx].sum() - arr_round[idx].sum(),decimals)]
         print(missing_value)
         # if missing_value is larger than the rounding step, defined by decimals, split missing value up
-        if missing_value[0] > 1*10**-decimals:
-            missing_value = [1*10**-decimals]*missing_value[0]
+        if missing_value[0] > 10**-decimals:
+            missing_value = [10**-decimals] * int(missing_value[0]/(10**-decimals))
         
         # get index where it would be fairest to round up/down
         if missing_value[0] >= 0:

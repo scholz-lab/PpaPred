@@ -124,7 +124,7 @@ XYs, CLines  = FeatureEngine.run(inpath,
                                  file_extension=file_extension,
                                  inpath_with_subfolders=inpath_with_subfolders)
 
-all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern)]
+all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and name.endswith('features.json')]
 
 # %% 2. Load Pipelines
 model = joblib.load(open(model_path, 'rb'))
@@ -187,11 +187,11 @@ for fpath in tqdm.tqdm(all_engine):
         p_out = pd.concat([d, pred, proba], axis=1) #d, 
         jsnL = json.loads(p_out.to_json(orient="split"))
         jsnF = json.dumps(jsnL, indent = 4)
-        with open(fpath, "w") as outfile:
+        with open(os.path.join(fn_dir, fn_out), "w") as outfile:
             outfile.write(jsnF)
         
         # rename fpath to clarify that it is predicted
-        os.rename(fpath, os.path.join(fn_dir, fn_out))
+        os.remove(fpath)
 
 logger.info(f'\n')
 logger.info(f'Following files could not be predicted: {notpredicted}')
