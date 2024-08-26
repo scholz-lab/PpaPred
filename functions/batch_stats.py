@@ -100,7 +100,7 @@ class BatchCondition():
                     batch = json.load(jsonfile)
                 if id in batch:
                     warnings.warn(f'Duplicate key {id}')
-            else:
+            else: 
                 batch = {}
                 self.append = True
                 if self.overwrite and os.path.isfile(self.jsonpath):
