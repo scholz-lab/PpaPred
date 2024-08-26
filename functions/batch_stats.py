@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import pandas as pd
 import json
@@ -47,20 +48,22 @@ class BatchCondition():
     """
     Creates and loads batch json files. That contain releveant information for state predictions.
     """
-    def __init__(self, inpath, data_str, jsonpath=None):
+    def __init__(self, inpath, data_str, jsonpath=None, overwrite=False, append =False, suffix = 'batch'):
         self.inpath = inpath
-        self.jsonpath = jsonpath
         self.data_str = data_str
-        self.suffix = 'batch'
+        self.jsonpath = jsonpath
         self.json_path()
+        self.overwrite = overwrite
+        self.append = append
+        self.suffix = suffix
 
     def json_path(self):
         if self.jsonpath is None:
             self.jsonpath = self.inpath
         self.jsonpath = os.path.join(self.jsonpath,f'{self.data_str}_{self.suffix}.json')
 
-    def create_json(self, append = False, overwrite = False):
-        if self.check_json_exists() and not overwrite and not append:
+    def create_json(self, append = False):
+        if self.check_json_exists() and not self.overwrite and not self.append:
             return self.load_json()
         loc_all, loc_summ, loc_trans = io.walkdir_filter(self.inpath, self.data_str, specific_patterns=['prediction.json', 'summary.csv','transitions.csv'])
         for fn,fpath in tqdm.tqdm(loc_all.items()):
@@ -91,13 +94,17 @@ class BatchCondition():
                         'ethogram':y.to_list()}}
 
             # if file exists and overwrite is false
-            ow_org = append
-            if os.path.isfile(self.jsonpath) and append:
+            ow_org = self.append
+            if os.path.isfile(self.jsonpath) and self.append:
                 with open(self.jsonpath, "r") as jsonfile:
                     batch = json.load(jsonfile)
+                if id in batch:
+                    warnings.warn(f'Duplicate key {id}')
             else:
                 batch = {}
-                append = True
+                self.append = True
+                if self.overwrite and os.path.isfile(self.jsonpath):
+                    warnings.warn(f'Json file will be overwritten: {self.jsonpath}')
             
             batch.update(etho)
             jsnF = json.dumps(batch, indent = 4, cls=rw.NanConverter)
@@ -105,7 +112,7 @@ class BatchCondition():
                 outfile.write(jsnF)
         with open(self.jsonpath, 'r') as f:
             self.batch = json.load(f)
-        append = ow_org
+        self.append = ow_org
 
     def check_json_exists(self):
         return os.path.exists(self.jsonpath)
@@ -113,6 +120,12 @@ class BatchCondition():
     def load_json(self):
         if not self.check_json_exists():
             print('Json file not found. Json will be created first.')
+            return self.create_json()
+        if self.overwrite:
+            print('Json file exists, but overwrtite set to True. Json will be recreated.')
+            return self.create_json()
+        if self.append:
+            print('Json file exists, but append set to True. New data will be written do Json.')
             return self.create_json()
         with open(self.jsonpath, 'r') as f:
             self.batch = json.load(f)
