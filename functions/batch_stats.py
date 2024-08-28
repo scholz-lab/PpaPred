@@ -63,9 +63,25 @@ class BatchCondition():
         self.jsonpath = os.path.join(self.jsonpath,f'{self.data_str}_{self.suffix}.json')
 
     def create_json(self, append = False):
-        if self.check_json_exists() and not self.overwrite and not self.append:
-            return self.load_json()
+        # check if exists
+        if self.check_json_exists():
+            # load rather than overwrite or append
+            if not self.overwrite and not self.append:
+                return self.load_json()
+            # if append, find files already processed
+            elif self.append:
+                with open(self.jsonpath, "r") as jsonfile:
+                    batch = json.load(jsonfile)
+                batch_ids = batch.keys()
+        
+        # get files
         loc_all, loc_summ, loc_trans = io.walkdir_filter(self.inpath, self.data_str, specific_patterns=['prediction.json', 'summary.csv','transitions.csv'])
+        
+        # pop files from loc_all if already in batch file
+        for id in batch_ids:
+            if id in loc_all:
+                loc_all.pop(id)
+
         for fn,fpath in tqdm.tqdm(loc_all.items()):
             id = '_'.join(fn.split('_')[:-1])
             data = pd.read_json(fpath, orient='split')
@@ -98,7 +114,7 @@ class BatchCondition():
             if os.path.isfile(self.jsonpath) and self.append:
                 with open(self.jsonpath, "r") as jsonfile:
                     batch = json.load(jsonfile)
-                if id in batch:
+                if fn in batch:
                     warnings.warn(f'Duplicate key {id}')
             else: 
                 batch = {}
