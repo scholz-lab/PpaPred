@@ -52,17 +52,18 @@ class BatchCondition():
         self.inpath = inpath
         self.data_str = data_str
         self.jsonpath = jsonpath
-        self.json_path()
         self.overwrite = overwrite
         self.append = append
         self.suffix = suffix
-
+        self.json_path()
+        
     def json_path(self):
         if self.jsonpath is None:
             self.jsonpath = self.inpath
         self.jsonpath = os.path.join(self.jsonpath,f'{self.data_str}_{self.suffix}.json')
 
     def create_json(self, append = False):
+        append_org = None
         # check if exists
         if self.check_json_exists():
             # load rather than overwrite or append
@@ -79,8 +80,11 @@ class BatchCondition():
         
         # pop files from loc_all if already in batch file
         for id in batch_ids:
-            if id in loc_all:
-                loc_all.pop(id)
+            processed_id = [fn for fn in loc_all if id == '_'.join(fn.split('_')[:-1])]
+            if len(processed_id) == 1:
+                loc_all.pop(processed_id[0])
+            elif len(processed_id) >= 2:
+                warnings.warn(f'Multiple files in loc_all match with {id}: {processed_id}')
 
         for fn,fpath in tqdm.tqdm(loc_all.items()):
             id = '_'.join(fn.split('_')[:-1])
@@ -110,7 +114,7 @@ class BatchCondition():
                         'ethogram':y.to_list()}}
 
             # if file exists and overwrite is false
-            ow_org = self.append
+            append_org = self.append
             if os.path.isfile(self.jsonpath) and self.append:
                 with open(self.jsonpath, "r") as jsonfile:
                     batch = json.load(jsonfile)
@@ -128,7 +132,9 @@ class BatchCondition():
                 outfile.write(jsnF)
         with open(self.jsonpath, 'r') as f:
             self.batch = json.load(f)
-        self.append = ow_org
+
+        if append_org is not None:
+            self.append = append_org
 
     def check_json_exists(self):
         return os.path.exists(self.jsonpath)
@@ -141,7 +147,7 @@ class BatchCondition():
             print('Json file exists, but overwrtite set to True. Json will be recreated.')
             return self.create_json()
         if self.append:
-            print('Json file exists, but append set to True. New data will be written do Json.')
+            print('Json file exists, but append set to True. New data will be written to Json.')
             return self.create_json()
         with open(self.jsonpath, 'r') as f:
             self.batch = json.load(f)
