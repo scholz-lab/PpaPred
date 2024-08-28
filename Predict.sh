@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=20
-#SBATCH --time=0-05:00:00
+#SBATCH --time=0-02:00:00
 #SBATCH --mem=0
 
 source activate sklearn-env2

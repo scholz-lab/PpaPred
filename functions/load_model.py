@@ -11,7 +11,7 @@ def load_tolist(loc, r = False, label=None, labelstonum=None, droplabels = None,
     if isinstance(loc, str):
         fdata = pd.read_json(loc, orient='split')
         if target2 is not None:
-            if labestonum2 is not None:
+            if labelstonum2 is not None:
                 target2_lst.append(fdata[target2].replace(labelstonum2.keys(), labelstonum2.values()))
             else:
                 target2_lst.append(fdata[target2])

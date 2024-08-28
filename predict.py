@@ -32,7 +32,7 @@ from functions.load_model import load_tolist
 import functions.process as proc
 from functions.io import setup_logger, makedir
 from functions.read_write import NpIntEncoder
-from functions import FeatureEngine
+from functions.FeatureEngine import CalculateFeatures 
 from functions.plots_prediction import ethogram_plotter, CLtrajectory_plotter, transition_plotter
  
 # %% SETTINGS
@@ -80,6 +80,8 @@ cluster_color = config['cluster_color']
 cluster_label = config['cluster_labels']
 skip_already = config['settings']['skip_already']
 
+feature_upper = {'velocity_dt60': 77} # 95 percentile TODO give possibility to either give 95 WT percentile or if not and to write on config
+
 # %% I/O
 # create list of inpath from folders in inpath that folder names contain inpath_pattern
 if inpath_with_subfolders:
@@ -104,7 +106,6 @@ logger.info(f"Foraging prediction of Pristionchus pacificus")
 logger.info(f"Version of model == {version}, stored at {model_path}\n")
 logger.info(f"Files to be predicted stored at:\n{newline.join(inpath)}")
 
-
 # %% 1. Feature Engineering
 # In the following section, additional features are calculated.
 # The engineerd data files are saved under the specified outpath/subfolder.
@@ -114,16 +115,22 @@ logger.info(f'### Feature Engineering ###')
 
 #TODO function that makes sure that fps is set to 30
 
-XYs, CLines  = FeatureEngine.run(inpath, 
-                                 outpath, 
-                                 logger, 
-                                 return_XYCLine = True, 
-                                 skip_engine = False, 
-                                 skip_already=False, 
-                                 out_fn_suffix='features',
-                                 inpath_with_subfolders=inpath_with_subfolders)
+FeatureEngine  = CalculateFeatures(inpath, 
+                                    outpath, 
+                                    logger, 
+                                    return_XYCLine = True, 
+                                    skip_engine = False, 
+                                    skip_already=False, 
+                                    out_fn_suffix='features',
+                                    inpath_with_subfolders=inpath_with_subfolders)
 
-all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern)]
+
+XYs, CLines  = FeatureEngine.run()
+
+all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and name.endswith('features.json')]
+
+# scaler to make mutants WT-like, to make comparable to WT phenotype
+FeatureEngine.scale(wanted_quantile=feature_upper, is_quantile=.95, apply_to='outs')
 
 # %% 2. Load Pipelines
 model = joblib.load(open(model_path, 'rb'))
