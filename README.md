@@ -6,7 +6,7 @@
 with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`
 
 2. Install environmnet:<br>
-`conda env create -f requirements.txt -n PpaPred`
+`conda env create -f requirements.txt -n PpaPred` or `conda env create -f environment.yml`
 
 3. Edit config and config_batch files, to specifiy path to your PharaGlow files, etc.
 
