@@ -403,6 +403,8 @@ class EthogramPlotter():
         self.multi_level = multi_level
         self.conditions = self.df.columns.get_level_values(multi_level).unique()
         f, ax = plt.subplots(1,len(self.conditions), figsize=tuple(np.multiply(adaptive_figsize,(len(self.conditions),1))))
+        if len(self.conditions) <= 1:
+            ax = [ax]
         for i,cond in enumerate(self.conditions):
             self.stacked(self.df[cond], ax[i])
             ax[i].set_title(cond)

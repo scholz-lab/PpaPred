@@ -65,6 +65,7 @@ class BatchCondition():
     def create_json(self, append = False):
         append_org = None
         # check if exists
+        batch_ids = {}
         if self.check_json_exists():
             # load rather than overwrite or append
             if not self.overwrite and not self.append:
