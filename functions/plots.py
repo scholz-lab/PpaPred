@@ -227,7 +227,7 @@ def find_uncommon(*lists):
     return uncommon
 
 class StateConditionBoxplot():
-    def __init__(self, multi_df, color_dict,  stats_df=None, y_label='', bonferroni=False, multi_level = 0, plot_percentile=(0,100), showfliers=True, showlegend=False, adaptive_figsize=True, cluster_label=None, figsize=(6,4)):
+    def __init__(self, multi_df, color_dict,  stats_df=None, y_label='', bonferroni=False, multi_level = 0, plot_percentile=(0,100), showfliers=True, showlegend=False, adaptive_figsize=True, cluster_label=None, figsize=(6,4), y_order={0:2,1:1,2:0,3:3,4:4,5:5}:
         self.multi_df = multi_df
         self.stats_df = stats_df
         self.plot_percentile = plot_percentile
@@ -236,6 +236,7 @@ class StateConditionBoxplot():
         self.bonferroni = bonferroni
         self.p_to_use = 'p' if not self.bonferroni else 'bonferroni p'
         self.y_label = y_label
+        self.y_order = y_order
         
         self.showfliers = showfliers
         self.showlegend = showlegend
@@ -266,8 +267,10 @@ class StateConditionBoxplot():
                 c_ = c_[0] if isinstance(c_, tuple) else c_
                 #cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
                 #p = cond_c_stats[self.p_to_use]
-                
-                hpos = j*len(self.conditions)+i*.8
+
+                if not c_ in self.y_order:
+                    continue
+                hpos = self.y_order[c_]*len(self.conditions)+i*.8
                 
                 ax.boxplot(self.multi_df[cond].loc[c][~np.isnan(self.multi_df[cond].loc[c])], 
                             positions = [hpos],
@@ -287,7 +290,10 @@ class StateConditionBoxplot():
                     cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
                     p = cond_c_stats[self.p_to_use]
                     
-                    hpos = j*len(self.conditions)+i*.8
+                    if not c_ in self.y_order:
+                        continue
+                    hpos = self.y_order[c_]*len(self.conditions)+i*.8
+                    
                     vpos = ax.get_ylim()[1]
                     if p < .05:
                         ax.text(hpos, vpos,'*'*sig_stars(p), ha='left', va='bottom', rotation=45) #TODO: sort out import
