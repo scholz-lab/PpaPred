@@ -253,7 +253,7 @@ class StateConditionBoxplot():
     def nan_percentiles(self):
         self.percentile = (np.round(np.nanpercentile(self.multi_df,self.plot_percentile[0])).astype(int),np.round(np.nanpercentile(self.multi_df,self.plot_percentile[1])).astype(int))
 
-    def boxes(self, cond, state, ax, grp_idx):
+    def boxes(self, cond, state, ax, notgrp, grp_idx):
         if isinstance(state, str):
             st_ = eval(state)
         else:
@@ -264,7 +264,7 @@ class StateConditionBoxplot():
         if not st_ in self.y_order:
             return
         
-        hpos = self.y_order[st_]*len(self.conditions)+grp_idx*.8
+        hpos = self.y_order[st_]*len(notgrp)+grp_idx*.8
         
         ax.boxplot(self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], 
                     positions = [hpos],
@@ -272,7 +272,7 @@ class StateConditionBoxplot():
                     showfliers=self.showfliers,
                     patch_artist = True, boxprops={'facecolor':self.color_dict[st_]},medianprops={'color':'k'})
     
-    def box_statstext(self, cond, state, ax, grp_idx):
+    def box_statstext(self, cond, state, ax, notgrp, grp_idx):
         if isinstance(state, str):
             st_ = eval(state)
         else:
@@ -283,7 +283,7 @@ class StateConditionBoxplot():
         
         if not st_ in self.y_order:
             return
-        hpos = self.y_order[st_]*len(self.conditions)+grp_idx*.8
+        hpos = self.y_order[st_]*len(notgrp)+grp_idx*.8
         
         vpos = ax.get_ylim()[1]
         if p < .05:
@@ -301,14 +301,16 @@ class StateConditionBoxplot():
         for i, cond in enumerate(self.conditions):
             for j,c in enumerate(self.multi_df.index):
                 grp_idx = j if self.grouping == 'condition' else i
-                self.boxes(cond, c, ax, grp_idx)
+                notgrp = self.multi_df.index if self.grouping == 'condition' else self.conditions
+                self.boxes(cond, c, ax, notgrp, grp_idx)
 
         # have to wait until all boxes are plot, to ensure alignment of annotation
         if self.stats_df is not None:
             for i, cond in enumerate(self.conditions):
                 for j,c in enumerate(self.multi_df.index):
                     grp_idx = j if self.grouping == 'condition' else i
-                    self.box_statstext(cond, c, ax, grp_idx)
+                    notgrp = self.multi_df.index if self.grouping == 'condition' else self.conditions
+                    self.box_statstext(cond, c, ax, notgrp, grp_idx)
     
         common = (find_common(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
         uncommon = (find_uncommon(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
@@ -330,7 +332,7 @@ class StateConditionBoxplot():
         plt.legend(handles=[Patch(facecolor=self.color_dict[i]) for i in self.index_plot],
                    labels=[self.cluster_label[k] for k in self.index_plot],
                    loc='upper left',
-                   bbox_to_anchor=(0, -0.5))
+                   bbox_to_anchor=(1, 1))
     
     def plot_groups(self, groups, normed=True):
         # TODO: should not depend on level(1) but rather last level, also if it is the only level
