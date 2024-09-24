@@ -238,6 +238,7 @@ class StateConditionBoxplot():
         self.p_to_use = 'p' if not self.bonferroni else 'bonferroni p'
         self.y_label = y_label
         self.y_order = y_order
+        self.grouping = "state" #or "condition"
         
         self.showfliers = showfliers
         self.showlegend = showlegend
@@ -252,57 +253,63 @@ class StateConditionBoxplot():
     def nan_percentiles(self):
         self.percentile = (np.round(np.nanpercentile(self.multi_df,self.plot_percentile[0])).astype(int),np.round(np.nanpercentile(self.multi_df,self.plot_percentile[1])).astype(int))
 
+    def boxes(self, cond, state, ax, grp_idx):
+        if isinstance(state, str):
+            st_ = eval(state)
+        else:
+            st_ = state
+        self.index_plot.append(st_)
+        st_ = st_[0] if isinstance(st_, tuple) else st_
+
+        if not st_ in self.y_order:
+            return
+        
+        hpos = self.y_order[st_]*len(self.conditions)+grp_idx*.8
+        
+        ax.boxplot(self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], 
+                    positions = [hpos],
+                    widths=.4,
+                    showfliers=self.showfliers,
+                    patch_artist = True, boxprops={'facecolor':self.color_dict[st_]},medianprops={'color':'k'})
+    
+    def box_statstext(self, cond, state, ax, grp_idx):
+        if isinstance(state, str):
+            st_ = eval(state)
+        else:
+            st_ = state
+        st_ = st_[0] if isinstance(st_, tuple) else st_
+        cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[st_]
+        p = cond_c_stats[self.p_to_use]
+        
+        if not st_ in self.y_order:
+            return
+        hpos = self.y_order[st_]*len(self.conditions)+grp_idx*.8
+        
+        vpos = ax.get_ylim()[1]
+        if p < .05:
+            ax.text(hpos, vpos,'*'*sig_stars(p), ha='left', va='bottom', rotation=45) #TODO: sort out import
+        else:
+            ax.text(hpos, vpos,'n.s.', ha='left', va='bottom', rotation=45)
+        ax.text(hpos, vpos*1.15,'N='+str(cond_c_stats['N']),ha='center', va='bottom')
+
     def plot(self):
         if self.adaptive_figsize:
             self.figsize = (self.figsize[0]*len(self.conditions), self.figsize[1])
         self.index_plot = []              
         fig, ax = plt.subplots(figsize=self.figsize)
-            
+
         for i, cond in enumerate(self.conditions):
             for j,c in enumerate(self.multi_df.index):
-                if isinstance(c, str):
-                    c_ = eval(c)
-                else:
-                    c_ = c
-                self.index_plot.append(c_)
-                c_ = c_[0] if isinstance(c_, tuple) else c_
-                #cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
-                #p = cond_c_stats[self.p_to_use]
-
-                if not c_ in self.y_order:
-                    continue
-                hpos = self.y_order[c_]*len(self.conditions)+i*.8
-                
-                ax.boxplot(self.multi_df[cond].loc[c][~np.isnan(self.multi_df[cond].loc[c])], 
-                            positions = [hpos],
-                            widths=.4,
-                            showfliers=self.showfliers,
-                            patch_artist = True, boxprops={'facecolor':self.color_dict[c_]},medianprops={'color':'k'})
+                grp_idx = j if self.grouping == 'condition' else i
+                self.boxes(cond, c, ax, grp_idx)
 
         # have to wait until all boxes are plot, to ensure alignment of annotation
         if self.stats_df is not None:
             for i, cond in enumerate(self.conditions):
                 for j,c in enumerate(self.multi_df.index):
-                    if isinstance(c, str):
-                        c_ = eval(c)
-                    else:
-                        c_ = c
-                    c_ = c_[0] if isinstance(c_, tuple) else c_
-                    cond_c_stats = self.stats_df[self.stats_df['Condition'] == cond].iloc[c_]
-                    p = cond_c_stats[self.p_to_use]
-                    
-                    if not c_ in self.y_order:
-                        continue
-                    hpos = self.y_order[c_]*len(self.conditions)+i*.8
-                    
-                    vpos = ax.get_ylim()[1]
-                    if p < .05:
-                        ax.text(hpos, vpos,'*'*sig_stars(p), ha='left', va='bottom', rotation=45) #TODO: sort out import
-                    else:
-                        ax.text(hpos, vpos,'n.s.', ha='left', va='bottom', rotation=45)
-                    ax.text(hpos, vpos*1.15,'N='+str(cond_c_stats['N']),ha='center', va='bottom')
-                    
-
+                    grp_idx = j if self.grouping == 'condition' else i
+                    self.box_statstext(cond, c, ax, grp_idx)
+    
         common = (find_common(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
         uncommon = (find_uncommon(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
 
@@ -319,6 +326,7 @@ class StateConditionBoxplot():
         return fig
     
     def plot_legend(self):
+        self.index_plot = np.unique(self.index_plot)
         plt.legend(handles=[Patch(facecolor=self.color_dict[i]) for i in self.index_plot],
                    labels=[self.cluster_label[k] for k in self.index_plot],
                    loc='upper left',
