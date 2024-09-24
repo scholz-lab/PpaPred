@@ -228,7 +228,7 @@ def find_uncommon(*lists):
 
 class StateConditionBoxplot():
     def __init__(self, multi_df, color_dict,  stats_df=None, y_label='', bonferroni=False, multi_level = 0, plot_percentile=(0,100), 
-                 showfliers=True, showlegend=False, adaptive_figsize=True, cluster_label=None, figsize=(6,4), y_order={0:2,1:1,2:0,3:3,4:4,5:5}):
+                 showfliers=True, showlegend=False, adaptive_figsize=True, cluster_label=None, figsize=(6,4), y_order={0:2,1:1,2:0,3:3,4:4,5:5}, grouping='state'):
         self.multi_df = multi_df
         self.stats_df = stats_df
         self.plot_percentile = plot_percentile
@@ -238,7 +238,7 @@ class StateConditionBoxplot():
         self.p_to_use = 'p' if not self.bonferroni else 'bonferroni p'
         self.y_label = y_label
         self.y_order = y_order
-        self.grouping = "state" #or "condition"
+        self.grouping = grouping #"state" #or "condition"
         
         self.showfliers = showfliers
         self.showlegend = showlegend
