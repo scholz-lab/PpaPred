@@ -264,7 +264,7 @@ class StateConditionBoxplot():
         if not st_ in self.y_order:
             return
         
-        hpos = grp_idx*notgrp_len + notgrp_idx*.8
+        hpos = notgrp_idx*notgrp_len + grp_idx*.8
         
         ax.boxplot(self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], 
                     positions = [hpos],
@@ -272,7 +272,7 @@ class StateConditionBoxplot():
                     showfliers=self.showfliers,
                     patch_artist = True, boxprops={'facecolor':self.color_dict[st_]},medianprops={'color':'k'})
     
-    def box_statstext(self, cond, state, ax, notgrp, grp_idx):
+    def box_statstext(self, cond, state, ax, grp_idx, notgrp_idx, notgrp_len):
         if isinstance(state, str):
             st_ = eval(state)
         else:
@@ -283,7 +283,9 @@ class StateConditionBoxplot():
         
         if not st_ in self.y_order:
             return
-        hpos = self.y_order[st_]*len(notgrp)+grp_idx*.8
+        
+        #hpos = self.y_order[st_]*len(notgrp)+grp_idx*.8
+        hpos = notgrp_idx*notgrp_len + grp_idx*.8
         
         vpos = ax.get_ylim()[1]
         if p < .05:
@@ -300,18 +302,18 @@ class StateConditionBoxplot():
 
         for i, cond in enumerate(self.conditions):
             for j,c in enumerate(self.multi_df.index):
-                grp_idx = i if self.grouping == 'condition' else self.y_order[eval(c)]
-                notgrp_len = len(self.conditions) if self.grouping == 'condition' else len(self.multi_df.index)
-                notgrp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
+                grp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
+                notgrp_len = len(self.multi_df.index) if self.grouping == 'condition' else len(self.conditions)
+                notgrp_idx = i if self.grouping == 'condition' else self.y_order[eval(str(c))]
                 self.boxes(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
 
         # have to wait until all boxes are plot, to ensure alignment of annotation
         if self.stats_df is not None:
             for i, cond in enumerate(self.conditions):
                 for j,c in enumerate(self.multi_df.index):
-                    grp_idx = i if self.grouping == 'condition' else self.y_order[eval(c)]
-                    notgrp_len = len(self.conditions) if self.grouping == 'condition' else len(self.multi_df.index)
-                    notgrp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
+                    grp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
+                    notgrp_len = len(self.multi_df.index) if self.grouping == 'condition' else len(self.conditions)
+                    notgrp_idx = i if self.grouping == 'condition' else self.y_order[eval(str(c))]
                     self.box_statstext(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
     
         common = (find_common(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
