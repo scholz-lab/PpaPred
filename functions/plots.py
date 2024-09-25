@@ -253,7 +253,7 @@ class StateConditionBoxplot():
     def nan_percentiles(self):
         self.percentile = (np.round(np.nanpercentile(self.multi_df,self.plot_percentile[0])).astype(int),np.round(np.nanpercentile(self.multi_df,self.plot_percentile[1])).astype(int))
 
-    def boxes(self, cond, state, ax, notgrp, grp_idx):
+    def boxes(self, cond, state, ax, grp_idx, notgrp_idx, notgrp_len):
         if isinstance(state, str):
             st_ = eval(state)
         else:
@@ -264,7 +264,7 @@ class StateConditionBoxplot():
         if not st_ in self.y_order:
             return
         
-        hpos = self.y_order[st_]*len(notgrp)+grp_idx*.8
+        hpos = grp_idx*notgrp_len + notgrp_idx*.8
         
         ax.boxplot(self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], 
                     positions = [hpos],
@@ -300,17 +300,19 @@ class StateConditionBoxplot():
 
         for i, cond in enumerate(self.conditions):
             for j,c in enumerate(self.multi_df.index):
-                grp_idx = j if self.grouping == 'condition' else i
-                notgrp = self.multi_df.index if self.grouping == 'condition' else self.conditions
-                self.boxes(cond, c, ax, notgrp, grp_idx)
+                grp_idx = i if self.grouping == 'condition' else self.y_order[eval(c)]
+                notgrp_len = len(self.conditions) if self.grouping == 'condition' else len(self.multi_df.index)
+                notgrp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
+                self.boxes(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
 
         # have to wait until all boxes are plot, to ensure alignment of annotation
         if self.stats_df is not None:
             for i, cond in enumerate(self.conditions):
                 for j,c in enumerate(self.multi_df.index):
-                    grp_idx = j if self.grouping == 'condition' else i
-                    notgrp = self.multi_df.index if self.grouping == 'condition' else self.conditions
-                    self.box_statstext(cond, c, ax, notgrp, grp_idx)
+                    grp_idx = i if self.grouping == 'condition' else self.y_order[eval(c)]
+                    notgrp_len = len(self.conditions) if self.grouping == 'condition' else len(self.multi_df.index)
+                    notgrp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
+                    self.box_statstext(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
     
         common = (find_common(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
         uncommon = (find_uncommon(*[s.split('_') for s in self.conditions]))  #TODO: sort out import
