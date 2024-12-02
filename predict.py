@@ -32,7 +32,7 @@ from functions.load_model import load_tolist
 import functions.process as proc
 from functions.io import setup_logger, makedir
 from functions.read_write import NpIntEncoder
-from functions.FeatureEngine import CalculateFeatures 
+from functions.FeatureEngine import CalculateFeatures, FeatureScaler
 from functions.plots_prediction import ethogram_plotter, CLtrajectory_plotter, transition_plotter
  
 # %% SETTINGS
@@ -80,7 +80,7 @@ cluster_color = config['cluster_color']
 cluster_label = config['cluster_labels']
 skip_already = config['settings']['skip_already']
 
-feature_upper = {'velocity_dt60': 77} # 95 percentile TODO give possibility to either give 95 WT percentile or if not and to write on config
+feature_upper = {'velocity_dt60': 45} # 75 percentile TODO give possibility to either give 95 WT percentile or if not and to write on config
 
 # %% I/O
 # create list of inpath from folders in inpath that folder names contain inpath_pattern
@@ -118,19 +118,22 @@ logger.info(f'### Feature Engineering ###')
 FeatureEngine  = CalculateFeatures(inpath, 
                                     outpath, 
                                     logger, 
-                                    return_XYCLine = True, 
-                                    skip_engine = False, 
-                                    skip_already=False, 
+                                    skip_already = skip_already, 
                                     out_fn_suffix='features',
                                     inpath_with_subfolders=inpath_with_subfolders)
 
 
-XYs, CLines  = FeatureEngine.run()
+features_out, XYs, CLines  = FeatureEngine.run(skip_engine=False)
+print(features_out.values())
 
 all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and name.endswith('features.json')]
+print(all_engine)
 
 # scaler to make mutants WT-like, to make comparable to WT phenotype
-FeatureEngine.scale(wanted_quantile=feature_upper, is_quantile=.95, apply_to='outs')
+FeatureScaler(all_engine, feature_upper, quantile=.75, json_orient='split', logger=logger).scale()
+#FeatureEngine.scale(wanted_quantile=feature_upper, is_quantile=.95, apply_to='outs')
+scaled_quantile = FeatureScaler.feature_quantile()
+logger.info(f"\{int(FeatureScaler.quantile*100)} quantiles after scaling:\n{scaled_quantile}\n")
 
 # %% 2. Load Pipelines
 model = joblib.load(open(model_path, 'rb'))
@@ -206,17 +209,20 @@ logger.info(f'Following files could not be predicted: {notpredicted}')
 logger.info(f'\n')
 logger.info(f'### Analysis ###')
 
+print(features_out)
 all_predicted = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and 'prediction.json' in name]
+print(all_predicted)
 
 # iterate over predicted files
-for fpath in tqdm.tqdm(all_predicted):
-    fn = os.path.basename(fpath)
+for fpath in tqdm.tqdm(features_out.values()):
+    fn = os.path.basename(fpath).replace('features', 'prediction')
+    #fn_out = fn.replace('prediction.json','')
     fn_out = fn.replace('prediction.json','')
 
     fn_dir= os.path.dirname(fpath)
     out_analysis = makedir(os.path.join(fn_dir, 'analysis'))
     
-    d = load_tolist(os.path.join(fpath), droplabelcol=False)[0]
+    d = load_tolist(os.path.join(fn_dir, fn), droplabelcol=False)[0]
     d['prediction'].to_csv(os.path.join(out_analysis, fn.replace('json','csv')), index=False) #TODO check if needed
     y = d['prediction'].values
     y = np.nan_to_num(y, -1)
@@ -266,7 +272,7 @@ for fpath in tqdm.tqdm(all_predicted):
         XY = XYs[fn.replace('_prediction.json','.json_labeldata.csv')]
         CLine = CLines[fn.replace('_prediction.json','.json_labeldata.csv')]
         
-        CLtrajectory_plot = CLtrajectory_plotter(CLine, XY, y, cluster_color, cluster_label, fn=fn, figsize=(10,10),)
+        CLtrajectory_plot = CLtrajectory_plotter(CLine, XY, cluster_color, cluster_label, fn=fn, figsize=(10,10),)
         plt.savefig(os.path.join(out_analysis, fn_out+'CLtrajectory.pdf'))
         plt.close()
 

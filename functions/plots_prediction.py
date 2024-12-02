@@ -102,7 +102,12 @@ def ethogram_plotter(d, y, onoff,  smooth, cluster_color, cluster_label, fn='', 
     
 def CLtrajectory_plotter(CLine, XY, cluster_color=['k'], cluster_label=[''], y = None, fn='', figsize=(10,10)):
     fig, ax = plt.subplots(figsize=figsize)
-    legend_elements = [Line2D([0], [0],color=cluster_color[i], label=cluster_label [i]) for i in cluster_label]
+    print(cluster_color, cluster_label)
+    if isinstance(cluster_label, dict) and isinstance(cluster_color, dict):
+        legend_elements = [Line2D([0], [0], color=cluster_color[i], label=cluster_label[i]) for i in cluster_label]
+    else:
+        legend_elements = [Line2D([0], [0], color=cluster_color[i], label=cluster_label[i]) for i in range(len(cluster_label))]
+
     adjustCL = (CLine-np.nanmean(CLine)) + np.repeat(XY.reshape(XY.shape[0],1,XY.shape[1]), CLine.shape[1], axis=1)#-np.nanmean(XY, axis=0)# fits better than subtracting 50
     #adjustXY = XY-np.nanmean(XY, axis=0)
     if y is not None:

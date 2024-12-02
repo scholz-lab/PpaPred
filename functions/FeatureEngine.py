@@ -23,15 +23,74 @@ class Printlogger():
     def info(str):
         print(str)
 
+class FeatureScaler():
+    def __init__(self, path_container, features, quantile=.95, json_orient='split', logger=Printlogger):
+        self.path = path_container
+        self.features = features
+        self.quantile = quantile
+        self.json_orient = json_orient
+        self.logger = logger
+        self.list2dict()
+    
+    def list2dict(self):
+        if isinstance(self.path, list):
+            self.path = {os.path.basename(p): p for p in self.path}
+    
+    def feature_quantile(self):
+        data = pd.DataFrame([])
+        features = self.features.keys()
+        for fn in self.path:
+            self.logger.info(f'feature_quantile: {fn}')
+            if fn.endswith('csv'):
+                PG = pd.read_csv(self.path[fn])
+            elif fn.endswith('json'):
+                PG = pd.read_json(self.path[fn], orient=self.json_orient)
+            data = pd.concat([data, PG[features]])
+        
+        data_quantiles = data.quantile(self.quantile).to_dict()
+        return data_quantiles
+    
+    def feature_scaler(self):
+        """
+        Input:
+            wanted_quantile (dict): dict containing feature names (keys) and quantile that should be scaled to, e.g. from WT data
+        Returns:
+            scaling values for data (dict)
+        """
+        data_quantile = self.feature_quantile()
+        scalings = {k: self.features[k]/v for k,v in data_quantile.items()}
+        
+        return data_quantile, scalings
+    
+    def scale(self, scalings=None):
+        # scale features by scaling value provided through scalings
+        if scalings is None:
+            data_quantile, scalings = self.feature_scaler()
+        self.logger.info(f"\{int(self.quantile*100)} quantiles before scaling:\n{data_quantile}\n")
+        self.logger.info(f"\nScaling Factor:\n{scalings}\n")
+
+        for fn in self.path:
+            fdata = pd.read_json(self.path[fn], orient=self.json_orient)
+            for feat in scalings:
+                fdata[feat] = fdata[feat]*scalings[feat]
+
+            # write
+            jsnL = json.loads(fdata.to_json(orient=self.json_orient))
+            jsnF = json.dumps(jsnL, indent = 4)
+            with open(self.path[fn], "w") as outfile:
+                self.logger.info("writing scaled version to file.")
+                outfile.write(jsnF)
+            
+        scaled_quantile = self.feature_quantile()
+        self.logger.info(f"\{int(self.quantile*100)} quantiles after scaling:\n{scaled_quantile}\n")
+
 class CalculateFeatures():
     
-    def __init__(self, inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False):
+    def __init__(self, inpath, outpath, logger=None, skip_already = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False):
         self.inpath = inpath
         self.outpath = outpath
         self.logger = logger
-        self.return_XYCLine = return_XYCLine
-        self.skip_already = skip_already
-        self.skip_engine = skip_engine
+        self.skip_already = skip_already 
         self.fps = fps
         self.break_after = break_after
         self.out_fn_suffix = out_fn_suffix
@@ -54,86 +113,49 @@ class CalculateFeatures():
         self.ins = {}
         self.outs = {}
         for dirIn, dirOut in zip(self.inpath,self.outpath):
-            in_name = os.path.basename(dirIn)
             out = makedir(dirOut)
             if self.skip_already:
-                engine_done = [f for f in os.listdir(out)]
+                engine_done = ['_'.join(f.split('_')[:-1]) for f in os.listdir(out)]
             i = 0
             for fn in os.listdir(dirIn):
                 if self.inpath_with_subfolders:
                     subf = os.path.basename(dirIn)
-                    uniq_id = '_'.join([subf, fn])
+                    uniq_fn = '_'.join([subf, fn])
                 else:
-                    uniq_id = fn
-                out_fn = os.path.join(out, f"{uniq_id.split('.')[0]}_{self.out_fn_suffix}.json")
-                if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done:
-                    self.ins[uniq_id] = os.path.join(dirIn, fn)
-                    self.outs[uniq_id] = out_fn
+                    uniq_fn = fn
+
+                id = uniq_fn.split('.')[0]
+                out_fn = f"{id}_{self.out_fn_suffix}.json"
+                print(id)
+                if "labeldata" in fn and not fn[0] == '.' and not id in engine_done:
+                    self.ins[uniq_fn] = os.path.join(dirIn, fn)
+                    self.outs[uniq_fn] = os.path.join(out, out_fn)
                     if self.break_after:
                         if i == self.break_after:
                             break
                         i += 1
 
-    def feature_quantile(self, features=['velocity_dt60'], quantile=.95, apply_to='outs'):
-        data = pd.DataFrame([])
-        path = {'ins': self.ins, 'outs': self.outs}[apply_to]
-        for fn in tqdm.tqdm(path):
-            PG, _ = self.load_data(fn)
-            if PG is None:
-                continue
-            data = pd.concat([data, PG[features]])
-        data_quantiles = data.quantile(quantile).to_dict()
-        self.logger.info(f"#########\n\n\n{data_quantiles}\n\n\n###########")
-        return data_quantiles
-    
-    def feature_scaler(self, wanted_quantile, is_quantile=.95, apply_to='outs'):
-        """
-        Input:
-            wanted_quantile (dict): dict containing feature names (keys) and quantile that should be scaled to, e.g. from WT data
-        Returns:
-            scaling values for data (dict)
-        """
-        data_quantile = self.feature_quantile(wanted_quantile.keys(), quantile=is_quantile, apply_to=apply_to)
-        scalings = {k: wanted_quantile[k]/v for k,v in data_quantile.items()}
-        self.logger.info(f"#########\n\n\n{scalings}\n\n\n###########")
-        return scalings
-    
-    def scale(self, scalings=None, wanted_quantile=None, is_quantile=None, apply_to='outs'):
-        # scale features by scaling value provided through scalings
-        if scalings is None and wanted_quantile is not None and is_quantile is not None:
-            scalings = self.feature_scaler(wanted_quantile, is_quantile, apply_to)
-
-        for fn in tqdm.tqdm(self.outs):
-            fdata = pd.read_json(self.outs[fn], orient='split')
-            for feat in scalings:
-                fdata[feat] = fdata[feat]*scalings[feat]
-
-            # write
-            jsnL = json.loads(fdata.to_json(orient="split"))
-            jsnF = json.dumps(jsnL, indent = 4)
-            with open(self.outs[fn], "w") as outfile:
-                    outfile.write(jsnF)
-            
-        _ = self.feature_quantile(wanted_quantile.keys(), quantile=is_quantile, apply_to=apply_to)
-
             
     
-    def load_data(self, fn):
+    def load_data(self, fn, inpath_dict=None):
+        if inpath_dict is None:
+            inpath_dict = self.ins
+            
         ### CLine_Concat is necessary as long as result files are in csv file format
         if fn.endswith('csv'):
-            PG = pd.read_csv(self.ins[fn])
+            PG = pd.read_csv(inpath_dict[fn])
             if not 'Centerline' in PG.columns:# or 'reversals_nose' not in PG.columns:
                 self.logger.debug(f'!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO\n')
                 return None, None
             CLine = proc.prepCL_concat(PG, "Centerline")
         if fn.endswith('json'):
-            PG = pd.read_json(self.ins[fn])['Centerline']
+            PG = pd.read_json(inpath_dict[fn])['Centerline']
             CLine = np.array([row for row in PG])
         CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
         return PG, CLine
 
     # Aim is to analyse the eigenpharynx of each results file
-    def run(self, feature_scaler=None):
+    def run(self, return_XYCLine = False, skip_engine = False, ):
         col_org_data = ['area', 'rate','negskew_clean',]
         scales = np.linspace(3, 50, 10)
         negskew_scale = 15/np.linspace(.3,5,10)
@@ -181,7 +203,7 @@ class CalculateFeatures():
                                                                             CLine_split.shape[1], axis=1)
                 
                 ### feature calculation #####################################################################################
-                if not self.skip_engine:
+                if not skip_engine:
                     ### vectors and angle between nosetip, defined as first 5 CLine_split points, and center of mass
                     _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
 
@@ -278,7 +300,7 @@ class CalculateFeatures():
                 CLine_splits = np.vstack([CLine_splits,prepadCL,CLine_split])
                 XY_splits = np.vstack([XY_splits,prepadXY,XY_split])
 
-            if not self.skip_engine:
+            if not skip_engine:
                 ### concat df splits, reindex to include nan in areas not present in PG_splits indices
                 PG_joined = pd.concat(PG_splits)
                 correct_idx = PG_joined.index
@@ -312,6 +334,6 @@ class CalculateFeatures():
         
             self.logger.info(f"\n")
 
-        if self.return_XYCLine:
+        if return_XYCLine:
             return XYs, CLines
         return self.outs, XYs, CLines
