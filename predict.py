@@ -65,11 +65,10 @@ fps = config['settings']['fps']
 
 # path
 inpath = config['path']['PharaGlow data']
-outpath = config['path']['predictions']
+base_outpath = config['path']['predictions']
 inpath_with_subfolders = config['path']['with subfolders']
 pgfile_pattern = config['settings']['pgfile_pattern']
 centerline_pattern = config['settings']['centerline_pattern']
-file_extension = 'csv'
 
 # plots
 summaries = config['analysis']['summaries']
@@ -91,7 +90,7 @@ else:
     inpath = [inpath]
 
 # make outpath
-base_outpath = makedir(outpath)
+#base_outpath = makedir(base_outpath)
 outpath = []
 for p in inpath:
     in_folder = os.path.basename(p)
@@ -118,17 +117,20 @@ logger.info(f'### Feature Engineering ###')
 
 XYs, CLines  = FeatureEngine.run(inpath, 
                                  outpath, 
+                                 config, 
                                  logger, 
                                  return_XYCLine = True, 
                                  skip_engine = False, 
                                  skip_already = False, 
                                  out_fn_suffix = 'features',
-                                 file_extension = file_extension,
                                  inpath_with_subfolders = inpath_with_subfolders,
                                  pgfile_pattern = pgfile_pattern,
                                  centerline_pattern = centerline_pattern)
 
-all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and name.endswith('features.json')]
+if inpath_with_subfolders:
+    all_engine = [os.path.join(root, f) for root, dirs, files in os.walk(base_outpath) for f in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and f.endswith('features.json')]
+else:
+    all_engine = [os.path.join(root, f) for root, dirs, files in os.walk(base_outpath) for f in files if any(pat in f for pat in inpath_pattern) and f.endswith('features.json')]
 
 # %% 2. Load Pipelines
 model = joblib.load(open(model_path, 'rb'))
@@ -204,7 +206,10 @@ logger.info(f'Following files could not be predicted: {notpredicted}')
 logger.info(f'\n')
 logger.info(f'### Analysis ###')
 
-all_predicted = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and 'prediction.json' in name]
+if inpath_with_subfolders:
+    all_predicted = [os.path.join(root, f) for root, dirs, files in os.walk(base_outpath) for f in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and 'prediction.json' in f]
+else:
+    all_predicted =  [os.path.join(root, f) for root, dirs, files in os.walk(base_outpath) for f in files if any(pat in f for pat in inpath_pattern) and f.endswith('prediction.json')]
 
 # iterate over predicted files
 for fpath in tqdm.tqdm(all_predicted):
@@ -261,8 +266,10 @@ for fpath in tqdm.tqdm(all_predicted):
     
 
     if trajectories:
-        XY = XYs[fn.replace('_prediction.json','.json_labeldata.csv')]
-        CLine = CLines[fn.replace('_prediction.json','.json_labeldata.csv')]
+        id = fn.replace('_prediction.json', '')
+        dict_id = {fn.split('.')[0]: fn for fn in XYs.keys()}
+        XY = XYs[dict_id[id]]
+        CLine = CLines[dict_id[id]]
         
         CLtrajectory_plot = CLtrajectory_plotter(CLine, XY, y, cluster_color, cluster_label, fn=fn, figsize=(10,10),)
         plt.savefig(os.path.join(out_analysis, fn_out+'CLtrajectory.pdf'))
@@ -270,3 +277,5 @@ for fpath in tqdm.tqdm(all_predicted):
 
 logger.info(f'\n')
 logger.info(f'### End ###')
+
+#TODO change output name from folder+name to name

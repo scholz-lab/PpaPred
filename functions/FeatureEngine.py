@@ -21,34 +21,8 @@ class Printlogger():
     def info(str):
         print(str)
 
-def setup(inpath, outpath, logger, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv', pgfile_pattern='labeldata', centerline_pattern=None):
-    engine_done = []
-    ins = {}
-    cl_ins = {}
-    outs = {}
-    for dirIn, dirOut in zip(inpath,outpath):
-        in_name = os.path.basename(dirIn)
-        out = makedir(dirOut)
-        if skip_already:
-            engine_done = [f for f in os.listdir(out)]
-        i = 0
-        for fn in os.listdir(dirIn):
-            if inpath_with_subfolders:
-                subf = os.path.basename(dirIn)
-                uniq_id = '_'.join([subf, fn])
-            else:
-                uniq_id = fn
-            out_fn = os.path.join(out, f"{uniq_id.split('.')[0]}_{out_fn_suffix}.json")
-            if pgfile_pattern in fn and not fn[0] == '.' and not out_fn in engine_done and fn.endswith(file_extension):
-                ins[uniq_id] = os.path.join(dirIn, fn)
-                outs[uniq_id] = out_fn
-                if break_after:
-                    if i == break_after:
-                        break
-                    i += 1
-    return ins, outs
 
-def setup(inpath, outpath, logger, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv', pgfile_pattern='labeldata', centerline_pattern=None):
+def setup(inpath, outpath, config, logger, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, pgfile_pattern='labeldata', centerline_pattern=None):
     engine_done = []
     ins = {}
     cl_ins = {}
@@ -95,7 +69,7 @@ def setup(inpath, outpath, logger, skip_already, break_after=False, out_fn_suffi
 
 
 # Aim is to analyse the eigenpharynx of each results file
-def FeatureEngine(data, outs, cl_ins, logger, skip_engine, fps=30):
+def FeatureEngine(data, outs, cl_ins, config, logger, skip_engine, fps=30):
     if logger is None:
         logger = Printlogger
 
@@ -112,7 +86,7 @@ def FeatureEngine(data, outs, cl_ins, logger, skip_engine, fps=30):
         if fn.endswith('csv'):
             PG = pd.read_csv(data[fn])
         if fn.endswith('json'):
-            PG = pd.read_json(data[fn], orient='split')
+            PG = pd.read_json(data[fn], orient=config['settings']['json_orient'])
         
         if fn in cl_ins.keys():
             CLine = pd.read_csv(cl_ins[fn],header=None) #try to read in file containing centerlines
@@ -162,7 +136,7 @@ def FeatureEngine(data, outs, cl_ins, logger, skip_engine, fps=30):
             
             ### open data for current split
             PG_split = PG.iloc[on:off].reset_index(drop=True)
-            XY_split = PG_split[['x','y']].values
+            XY_split = PG_split[[config['settings']['x_col'], config['settings']['y_col']]].values
             ### tries to identify frames where the Centerline is tracked up side down, checks coherence of movement
             CLine_split = proc.flip_ifinverted(CLine[on:off], XY_split)
             ### created CL in arena space; mean fits better than subtracting 50, which would be half of set length
@@ -287,22 +261,22 @@ def FeatureEngine(data, outs, cl_ins, logger, skip_engine, fps=30):
         logger.info(f"\n")    
     return outs, XYs, CLines
     
-def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv', pgfile_pattern='labeldata', centerline_pattern=None):
+def run(inpath, outpath, config, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, pgfile_pattern='labeldata', centerline_pattern=None):
     if isinstance(inpath,str):
         inpath = [inpath]
     if isinstance(outpath,str):
         outpath = [outpath]
     ins, outs, cl_ins = setup(inpath, 
                                 outpath, 
+                                config, 
                                 logger, 
                                 skip_already,
                                 break_after=break_after, 
                                 out_fn_suffix=out_fn_suffix, 
-                                inpath_with_subfolders=inpath_with_subfolders, 
-                                file_extension=file_extension,
+                                inpath_with_subfolders=inpath_with_subfolders,
                                 pgfile_pattern=pgfile_pattern,
                                 centerline_pattern=centerline_pattern)
     
-    outs, XYs, CLines = FeatureEngine(ins, outs, cl_ins, logger, skip_engine, fps)
+    outs, XYs, CLines = FeatureEngine(ins, outs, cl_ins, config, logger, skip_engine, fps)
     if return_XYCLine:
         return XYs, CLines

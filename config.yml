@@ -6,8 +6,11 @@ settings:
     'skip_already': False
     'overwrite batch': True
     'append batch': False
-    'pgfile_pattern': 'signals' # default should be label
-    'centerline_pattern': 'centerlines' # default should be None (if not read in seperately)
+    'pgfile_pattern': 'signalsneg' # default should be label
+    'centerline_pattern': 'um_centerlines' # default should be None (if not read in seperately)
+    'json_orient': 'columns' # default should be 'split'
+    'x_col': 'cms_x' # default should be x
+    'y_col': 'cms_y' # default should be y
 path:
     'PharaGlow data': '' # path to PharaGlow data
     'predictions': '' # path to where predictions should be saved
