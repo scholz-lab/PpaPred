@@ -67,6 +67,8 @@ fps = config['settings']['fps']
 inpath = config['path']['PharaGlow data']
 outpath = config['path']['predictions']
 inpath_with_subfolders = config['path']['with subfolders']
+pgfile_pattern = config['settings']['pgfile_pattern']
+centerline_pattern = config['settings']['centerline_pattern']
 file_extension = 'csv'
 
 # plots
@@ -119,10 +121,12 @@ XYs, CLines  = FeatureEngine.run(inpath,
                                  logger, 
                                  return_XYCLine = True, 
                                  skip_engine = False, 
-                                 skip_already=False, 
-                                 out_fn_suffix='features',
-                                 file_extension=file_extension,
-                                 inpath_with_subfolders=inpath_with_subfolders)
+                                 skip_already = False, 
+                                 out_fn_suffix = 'features',
+                                 file_extension = file_extension,
+                                 inpath_with_subfolders = inpath_with_subfolders,
+                                 pgfile_pattern = pgfile_pattern,
+                                 centerline_pattern = centerline_pattern)
 
 all_engine = [os.path.join(root, name) for root, dirs, files in os.walk(base_outpath) for name in files if any(pat in os.path.basename(root) for pat in inpath_pattern) and name.endswith('features.json')]
 

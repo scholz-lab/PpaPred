@@ -6,11 +6,13 @@ settings:
     'skip_already': False
     'overwrite batch': True
     'append batch': False
+    'pgfile_pattern': 'signals'
+    'centerline_pattern': 'centerlines'
 path:
     'PharaGlow data': '' # path to PharaGlow data
-    'predictions': '/gpfs/soma_fs/scratch/src/' # path to where predictions should be saved
+    'predictions': '' # path to where predictions should be saved
     'analysis': '' # path to where batch analysis should be saved
-    'with subfolders': True
+    'with subfolders': False
 analysis:
     'summaries': True # needed for batch analysis
     'ethograms': True

@@ -12,7 +12,7 @@ import matplotlib.pylab as plt
 sys.path.append(os.getcwd())
 import functions.process as proc
 import functions.algebra as al
-from functions.io import makedir
+from functions.io import makedir, listdir_filter
 
 sys.path.append(os.path.expanduser("~"))
 
@@ -21,9 +21,10 @@ class Printlogger():
     def info(str):
         print(str)
 
-def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv'):
+def setup(inpath, outpath, logger, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv', pgfile_pattern='labeldata', centerline_pattern=None):
     engine_done = []
     ins = {}
+    cl_ins = {}
     outs = {}
     for dirIn, dirOut in zip(inpath,outpath):
         in_name = os.path.basename(dirIn)
@@ -38,7 +39,7 @@ def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='featu
             else:
                 uniq_id = fn
             out_fn = os.path.join(out, f"{uniq_id.split('.')[0]}_{out_fn_suffix}.json")
-            if "labeldata" in fn and not fn[0] == '.' and not out_fn in engine_done and fn.endswith(file_extension):
+            if pgfile_pattern in fn and not fn[0] == '.' and not out_fn in engine_done and fn.endswith(file_extension):
                 ins[uniq_id] = os.path.join(dirIn, fn)
                 outs[uniq_id] = out_fn
                 if break_after:
@@ -47,14 +48,58 @@ def setup(inpath, outpath, skip_already, break_after=False, out_fn_suffix='featu
                     i += 1
     return ins, outs
 
+def setup(inpath, outpath, logger, skip_already, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv', pgfile_pattern='labeldata', centerline_pattern=None):
+    engine_done = []
+    ins = {}
+    cl_ins = {}
+    outs = {}
+    for dirIn, dirOut in zip(inpath,outpath):
+        in_name = os.path.basename(dirIn)
+        out = makedir(dirOut)
+        if skip_already:
+            engine_done = [f for f in os.listdir(out)]
+        logger.info(dirIn)
+        pgfiles, clfiles = listdir_filter(dirIn, '', [pgfile_pattern, centerline_pattern])
+        i = 0
+        for fn in pgfiles:
+            if inpath_with_subfolders:
+                subf = os.path.basename(dirIn)
+                uniq_id = '_'.join([subf, fn])
+            else:
+                uniq_id = fn
+            fn_parts = fn.split('_')
+            if clfiles:
+                logger.info(clfiles)
+                merge_counter = 0
+                cl_fn = []
+                while len(cl_fn) != 1 and merge_counter < len(fn_parts):
+                    logger.info(cl_fn)
+                    id_merged = '_'.join(fn_parts[:merge_counter+1])
+                    cl_fn = [f for f in clfiles.keys() if id_merged in f]
+                    merge_counter += 1
+                if len(cl_fn) == 1:
+                    cl_ins[uniq_id] = os.path.join(dirIn, cl_fn[0])
+
+            out_fn = os.path.join(out, f"{uniq_id.split('.')[0]}_{out_fn_suffix}.json")
+            ins[uniq_id] = os.path.join(dirIn, fn)
+            outs[uniq_id] = out_fn
+
+            if break_after:
+                if i == break_after:
+                    break
+                i += 1
+    logger.info(f'ins : {ins}')
+    logger.info(f'cl_ins : {cl_ins}')
+    return ins, outs, cl_ins
+
 
 
 # Aim is to analyse the eigenpharynx of each results file
-def FeatureEngine(data, outs, logger, skip_engine, fps=30):
+def FeatureEngine(data, outs, cl_ins, logger, skip_engine, fps=30):
     if logger is None:
         logger = Printlogger
 
-    col_org_data = ['area', 'rate','negskew_clean',]
+    col_org_data = ['rate','negskew_clean',]
     scales = np.linspace(3, 50, 10)
     negskew_scale = 15/np.linspace(.3,5,10)
     
@@ -66,31 +111,46 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
         ### CLine_Concat is necessary as long as result files are in csv file format
         if fn.endswith('csv'):
             PG = pd.read_csv(data[fn])
-            if not 'Centerline' in PG.columns:# or 'reversals_nose' not in PG.columns:
-                logger.debug(f'!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO\n')
-                continue
-            CLine = proc.prepCL_concat(PG, "Centerline")
         if fn.endswith('json'):
-            PG = pd.read_json(data[fn])['Centerline']
-            CLine = np.array([row for row in PG])
+            PG = pd.read_json(data[fn], orient='split')
+        
+        if fn in cl_ins.keys():
+            CLine = pd.read_csv(cl_ins[fn],header=None) #try to read in file containing centerlines
+            CLine = CLine.values.reshape(CLine.values.shape[0],100,2)
+            logger.info(f'"Centerline" loaded from centerline file {os.path.basename(cl_ins[fn])}\n')
+        elif "Centerline" in PG.columns and fn.endswith('csv'): 
+            CLine = proc.prepCL_concat(PG, "Centerline") #if not in cl_ins, try to read it from data directly
+            logger.info(f'"Centerline" loaded from pga file {os.path.basename(data[fn])}\n')
+        elif "Centerline" in PG.columns and fn.endswith('json'): 
+            CLine = np.array([row for row in PG['Centerline']]) #if not in cl_ins, try to read it from data directly
+            logger.info(f'"Centerline" loaded from pga file {os.path.basename(data[fn])}\n')
+        else:
+            logger.info(f'!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO\n')
+            continue
+
+
         CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
 
         # look for large area, filter
-        large_area = np.where(PG['area']>=np.mean(PG.area)*1.5)[0]
-        large_diff = [0]+[i+1 for i,e in enumerate(np.diff(large_area)) if e > 1] if large_area.size > 0 else []
-        large_size = np.diff(large_diff, append=len(large_area))
-        large_ranges = [range(large_area[d_i], large_area[d_i]+s) for d_i, s in zip(large_diff, large_size)]
-        logger.info(f'Area larger than threshold, collision assumed in {large_ranges}.\nCalculation of features will be done in splits, ignoring those and adjacent* ranges. *That are less than 1 sec long.')
+        if 'area' in PG.columns:
+            large_area = np.where(PG['area']>=np.mean(PG.area)*1.5)[0]
+            large_diff = [0]+[i+1 for i,e in enumerate(np.diff(large_area)) if e > 1] if large_area.size > 0 else []
+            large_size = np.diff(large_diff, append=len(large_area))
+            large_ranges = [range(large_area[d_i], large_area[d_i]+s) for d_i, s in zip(large_diff, large_size)]
+            logger.info(f'Area larger than threshold, collision assumed in {large_ranges}.\nCalculation of features will be done in splits, ignoring those and adjacent* ranges. *That are less than 1 sec long.')
 
-        correct_area = np.where(PG['area']<=np.mean(PG.area)*1.5)[0]
-        correct_diff = [0]+[i+1 for i,e in enumerate(np.diff(correct_area)) if e > 1]
-        correct_size = np.diff(correct_diff, append=len(correct_area))
-        data_splits = []
-        for i in range(len(correct_size)):
-            if correct_size[i] > fps:
-                correct_start = correct_area[correct_diff[i]]
-                correct_end = correct_area[correct_diff[i]] + correct_size[i]
-                data_splits.append([correct_start, correct_end])
+            correct_area = np.where(PG['area']<=np.mean(PG.area)*1.5)[0]
+            correct_diff = [0]+[i+1 for i,e in enumerate(np.diff(correct_area)) if e > 1]
+            correct_size = np.diff(correct_diff, append=len(correct_area))
+            data_splits = []
+            for i in range(len(correct_size)):
+                if correct_size[i] > fps:
+                    correct_start = correct_area[correct_diff[i]]
+                    correct_end = correct_area[correct_diff[i]] + correct_size[i]
+                    data_splits.append([correct_start, correct_end])
+        # if area not in columns take all
+        else:
+            data_splits = [[0, PG.shape[0]]]
 
         PG_splits = []
         CLine_splits = np.empty((0,*CLine.shape[1:]))
@@ -109,11 +169,12 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
             adjustCL_split = (CLine_split-np.mean(CLine_split))+np.repeat(XY_split.reshape(XY_split.shape[0],1, XY_split.shape[1]), 
                                                                           CLine_split.shape[1], axis=1)
             
+            logger.info(f'skip engine {skip_engine}')
             ### feature calculation #####################################################################################
             if not skip_engine:
                 ### vectors and angle between nosetip, defined as first 5 CLine_split points, and center of mass
                 _, tip2cm_arccos, _ = al.AngleLen(adjustCL_split, XY_split, hypotenuse = "v1", over="space", v1_args=dict(diffindex=[5,0]))
-                
+                logger.info(f'tip2cm_arccos {tip2cm_arccos.shape}')
                 ### calculate reversal, as over 120deg 
                 reversal_bin = np.where(tip2cm_arccos >= np.deg2rad(120), 1, 0)
                 reversal_events = np.clip(np.diff(reversal_bin, axis=0), 0, 1)
@@ -131,23 +192,24 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
                 # hstack all calculated features 
                 new_data = pd.DataFrame(np.hstack((tip2cm_arccos, reversal_rate)), 
                                         columns=['tip2cm_arccos','reversal_rate'])
+                logger.info(f'new_data {new_data.shape}')
         
                 ### load original data from PharaGlow results file
                 col_org_notexist = [c not in PG_split.columns for c in col_org_data]
                 if any(col_org_notexist):
-                    logger.debug(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data\n')
+                    logger.info(f'WARNING {list(itertools.compress(col_org_data,col_org_notexist))} not in data\n')
                     ### TODO make entries with nans
-                    continue
+                    #continue
     
-    
+                logger.info(f'PG_new {PG_split}')
                 ### combine new and original features in one Df
                 PG_new = pd.concat([PG_split[col_org_data], new_data], axis=1)
-                PG_new['velocity'] = proc.velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=30)
+                PG_new['velocity'] = proc.velocity(PG_split['x'],PG_split['y'], 1, fps=30, dt=30)
                 PG_new['velocity_mean'] = PG_new['velocity'].rolling(window=60, min_periods=1).mean()
-                PG_new['velocity_dt60'] = proc.velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=60)
+                PG_new['velocity_dt60'] = proc.velocity(PG_split['x'],PG_split['y'], 1, fps=30, dt=60)
                 # new
-                PG_new['velocity_dt150'] = proc.velocity(PG_split['x_scaled'],PG_split['y_scaled'], 1, fps=30, dt=150)
-    
+                PG_new['velocity_dt150'] = proc.velocity(PG_split['x'],PG_split['y'], 1, fps=30, dt=150)
+                logger.info(f'PG_new {PG_new}')
                 ### Calculating smooth, freq and amplitude for all columns
                 for col in  PG_new.columns:
                     if 'negskew'in col:
@@ -175,15 +237,8 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
 
         
                 # edited
-                # encode angular columns as cos sin
-                # take rolling circular mean
+                # drop angular columns
                 deg_cols = PG_new.filter(regex='arccos$').columns
-                #cos_ = np.cos(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_cos'))
-                #cos_ = cos_.rolling(60, min_periods=1, center=True).mean()
-                #sin_ = np.sin(PG_new[deg_cols]).rename(columns = lambda s: s.replace(s, s.split('_')[0]+'_sin'))
-                #sin_ = sin_.rolling(60, min_periods=1, center=True).mean()
-                ### concat encoded columns, drop angular columns # for ease of distance and mean calculation
-                #PG_new = pd.concat([PG_new, cos_, sin_], axis=1)
                 PG_new = PG_new.drop(deg_cols, axis=1)
 
                 ### set index to original split
@@ -232,12 +287,22 @@ def FeatureEngine(data, outs, logger, skip_engine, fps=30):
         logger.info(f"\n")    
     return outs, XYs, CLines
     
-def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv'):
+def run(inpath, outpath, logger=None, return_XYCLine = False, skip_already = False, skip_engine = False, fps=30, break_after=False, out_fn_suffix='features', inpath_with_subfolders=False, file_extension='csv', pgfile_pattern='labeldata', centerline_pattern=None):
     if isinstance(inpath,str):
         inpath = [inpath]
     if isinstance(outpath,str):
         outpath = [outpath]
-    ins, outs = setup(inpath, outpath, skip_already, break_after=break_after, out_fn_suffix=out_fn_suffix, inpath_with_subfolders=inpath_with_subfolders, file_extension=file_extension)
-    outs, XYs, CLines = FeatureEngine(ins, outs, logger, skip_engine, fps)
+    ins, outs, cl_ins = setup(inpath, 
+                                outpath, 
+                                logger, 
+                                skip_already,
+                                break_after=break_after, 
+                                out_fn_suffix=out_fn_suffix, 
+                                inpath_with_subfolders=inpath_with_subfolders, 
+                                file_extension=file_extension,
+                                pgfile_pattern=pgfile_pattern,
+                                centerline_pattern=centerline_pattern)
+    
+    outs, XYs, CLines = FeatureEngine(ins, outs, cl_ins, logger, skip_engine, fps)
     if return_XYCLine:
         return XYs, CLines
