@@ -6,8 +6,8 @@ settings:
     'skip_already': False
     'overwrite batch': True
     'append batch': False
-    'pgfile_pattern': 'signals'
-    'centerline_pattern': 'centerlines'
+    'pgfile_pattern': 'signals' # default should be label
+    'centerline_pattern': 'centerlines' # default should be None (if not read in seperately)
 path:
     'PharaGlow data': '' # path to PharaGlow data
     'predictions': '' # path to where predictions should be saved
