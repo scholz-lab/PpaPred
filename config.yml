@@ -8,14 +8,14 @@ settings:
     'append batch': False
     'pgfile_pattern': 'results' # default should be label
     'centerline_pattern': 'um_centerlines' # default should be None (if not read in seperately)
-    'json_orient': 'split' # default should be 'split'
+    'json_orient': 'split' # orientation of json file. default should be 'split'
     'x_col': 'x' # default should be x
     'y_col': 'y' # default should be y
-    'centerline_order': 'xy' # order in which coordinates are saved in centerline
+    'centerline_order': 'xy' # order in which coordinates are saved in centerline. For normal PharaGlow projects: yx for GlowTracker: xy
 path:
-    'PharaGlow data': '/gpfs/soma_fs/home/boeger/data/LB013/slurm' # path to PharaGlow data
-    'predictions': '/gpfs/soma_fs/home/boeger/data/LB013/slurm_predictions' # path to where predictions should be saved
-    'analysis': '/gpfs/soma_fs/home/boeger/data/LB013/slurm_analysis' # path to where batch analysis should be saved
+    'PharaGlow data': '' # path to PharaGlow data
+    'predictions': '' # path to where predictions should be saved
+    'analysis': '' # path to where batch analysis should be saved
     'with subfolders': False
 analysis:
     'summaries': True # needed for batch analysis
