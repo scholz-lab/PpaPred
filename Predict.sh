@@ -3,7 +3,7 @@
 #SBATCH -e %j_predict.err
 #SBATCH -D ./
 #SBATCH -J predict
-#SBATCH --partition=CPU
+#SBATCH --partition=GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=20

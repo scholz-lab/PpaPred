@@ -102,8 +102,8 @@ def FeatureEngine(data, outs, cl_ins, config, logger, skip_engine, fps=30):
             logger.info(f'!!! NO "Centerline" FOUND IN AXIS, MOVING ON TO NEXT VIDEO\n')
             continue
 
-
-        CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
+        if config['settings']['centerline_order'] == 'yx':
+            CLine = CLine[:,:,::-1] ### VERY IMPORTANT, flips x and y of CenterLine, so that x is first
 
         # look for large area, filter
         if 'area' in PG.columns:

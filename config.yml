@@ -6,15 +6,16 @@ settings:
     'skip_already': False
     'overwrite batch': True
     'append batch': False
-    'pgfile_pattern': 'signalsneg' # default should be label
+    'pgfile_pattern': 'results' # default should be label
     'centerline_pattern': 'um_centerlines' # default should be None (if not read in seperately)
-    'json_orient': 'columns' # default should be 'split'
-    'x_col': 'cms_x' # default should be x
-    'y_col': 'cms_y' # default should be y
+    'json_orient': 'split' # default should be 'split'
+    'x_col': 'x' # default should be x
+    'y_col': 'y' # default should be y
+    'centerline_order': 'xy' # order in which coordinates are saved in centerline
 path:
-    'PharaGlow data': '' # path to PharaGlow data
-    'predictions': '' # path to where predictions should be saved
-    'analysis': '' # path to where batch analysis should be saved
+    'PharaGlow data': '/gpfs/soma_fs/home/boeger/data/LB013/slurm' # path to PharaGlow data
+    'predictions': '/gpfs/soma_fs/home/boeger/data/LB013/slurm_predictions' # path to where predictions should be saved
+    'analysis': '/gpfs/soma_fs/home/boeger/data/LB013/slurm_analysis' # path to where batch analysis should be saved
     'with subfolders': False
 analysis:
     'summaries': True # needed for batch analysis
@@ -27,6 +28,7 @@ plot_settings:
     'bonferroni': True
     'Z': None
     'test_metrics': ['rel time in', 'mean duration','mean transitions','ethogram']
+    'centerline_centered': True # default should be False
 cluster_color:
   -1: '#dbdbdb'
   0: '#BB0A21'
