@@ -99,13 +99,17 @@ class BatchCondition():
             summ_ = pd.read_csv([l for l in loc_summ.values() if id in l][0])
 
             fr_transition_ = pd.read_csv([l for l in loc_trans.values() if id in l][0], index_col=0)
-            fr_transition_[fr_transition_==0] = np.nan # for now until processing in FeedingPrediction is fixed
+            #fr_transition_[fr_transition_==0] = np.nan # for now until processing in FeedingPrediction is fixed
+            stateNotPresent = ~(fr_transition_.any(axis=0))
+            fr_transition_.loc[:,stateNotPresent] = np.nan
+            fr_transition_ = fr_transition_.astype(float)
             fr_transition_tuple = dict(zip(str(list(itertools.product(fr_transition_.columns.astype(int), fr_transition_.index))).strip('[()]').split('), ('), fr_transition_.values.T.flatten()))
     
             data_mean = data[['velocity', 'rate', 'prediction']].groupby('prediction').mean().reindex(range(-1,8))
             
             # prep of json file structure
-            etho = {id:{'count':summ_.duration_count.fillna(0).to_dict(),
+            etho = {id:{'track len frames':len(data),
+                        'count':summ_.duration_count.fillna(0).to_dict(),
                         'mean duration':summ_.duration_mean.to_dict(),
                         'rel time in': summ_.duration_relative.fillna(0).to_dict(),
                         'mean velocity': data_mean.velocity.to_dict(),
