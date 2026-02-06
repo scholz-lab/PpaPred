@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import re
 
 # used
 def setup_logger(name, filename, level=logging.INFO, logformat ='%(asctime)s %(levelname)s %(message)s'):
@@ -20,11 +21,16 @@ def makedir(dirname, basepath = ''):
     return dirpath
 
 # used
-def walkdir_filter(inpath, folder_str, specific_patterns=None, fileendings=['csv','json'],):
-    pattern_dir = [os.path.join(root, name) for root, dirs, files in os.walk(inpath) for name in dirs if folder_str in name]
-    #all_files = [os.path.join(root, name) for root, dirs, files in os.walk(pattern_dir) for name in files if any([name.endswith(suff) for suff in fileendings])]
-    all_files = [[os.path.join(root, name) for root, dirs, files in os.walk(pat_dir) for name in files if any([name.endswith(suff) for suff in fileendings])] for pat_dir in pattern_dir]
-    all_files = [v for lst in all_files for v in lst]
+def walkdir_filter(inpath, data_str, specific_patterns=None, fileendings=['csv','json'], subfolders=False):
+    if subfolders:
+        pattern_dir = [os.path.join(root, name) for root, dirs, files in os.walk(inpath) for name in dirs if re.search(data_str, name)]
+        all_files = [[os.path.join(root, name) for root, dirs, files in os.walk(pat_dir) for name in files if any([name.endswith(suff) for suff in fileendings])] for pat_dir in pattern_dir]
+        #all_files = [os.path.join(root, name) for root, dirs, files in os.walk(pattern_dir) for name in files if any([name.endswith(suff) for suff in fileendings])]
+        all_files = [v for lst in all_files for v in lst]
+    else:
+        pattern_files = [os.path.join(root, name) for root, dirs, files in os.walk(inpath) for name in files if re.search(data_str, name)]
+        print(pattern_files)
+        all_files = [pat_f for pat_f in pattern_files if any([pat_f.endswith(suff) for suff in fileendings])]
     list_return = []
     if specific_patterns is None:
         return all_files
@@ -33,6 +39,7 @@ def walkdir_filter(inpath, folder_str, specific_patterns=None, fileendings=['csv
             list_return.append({os.path.basename(f):f for f in all_files if pat in f})
         else:
             list_return.append({})
+    print(list_return)
     return list_return
 
 def listdir_filter(inpath, file_str, specific_patterns=None, fileendings=['csv','json'],):

@@ -264,13 +264,32 @@ class StateConditionBoxplot():
         if not st_ in self.y_order:
             return
         
-        hpos = notgrp_idx*notgrp_len + grp_idx*.8
+        hpos = notgrp_idx*notgrp_len + grp_idx
         
         ax.boxplot(self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], 
                     positions = [hpos],
                     widths=.4,
                     showfliers=self.showfliers,
                     patch_artist = True, boxprops={'facecolor':self.color_dict[st_]},medianprops={'color':'k'})
+    
+    def swarms(self, cond, state, ax, grp_idx, notgrp_idx, notgrp_len):
+        if isinstance(state, str):
+            st_ = eval(state)
+        else:
+            st_ = state
+        self.index_plot.append(st_)
+        st_ = st_[0] if isinstance(st_, tuple) else st_
+
+        if not st_ in self.y_order:
+            return
+        
+        hpos = notgrp_idx*notgrp_len + grp_idx
+        scat = ax.scatter(swarm_from_bins(self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], 
+                                    bin_step=20, x_base=hpos), 
+                    self.multi_df[cond].loc[state][~np.isnan(self.multi_df[cond].loc[state])], fc=self.color_dict[st_], ec='k', zorder=2)
+        current_ticks = ax.get_xticks()
+        new_ticks = list(current_ticks) if hpos in current_ticks else list(current_ticks) + [hpos]
+        ax.set_xticks(new_ticks)
     
     def box_statstext(self, cond, state, ax, grp_idx, notgrp_idx, notgrp_len):
         if isinstance(state, str):
@@ -294,18 +313,22 @@ class StateConditionBoxplot():
             ax.text(hpos, vpos,'n.s.', ha='left', va='bottom', rotation=45)
         ax.text(hpos, vpos*1.15,'N='+str(cond_c_stats['N']),ha='center', va='bottom')
 
-    def plot(self):
+    def plot(self, box=True, swarm=False):
         if self.adaptive_figsize:
             self.figsize = (self.figsize[0]*len(self.conditions), self.figsize[1])
         self.index_plot = []              
         fig, ax = plt.subplots(figsize=self.figsize)
+        ax.set_xticks([])
 
         for i, cond in enumerate(self.conditions):
             for j,c in enumerate(self.multi_df.index):
                 grp_idx = self.y_order[eval(c)] if self.grouping == 'condition' else i
                 notgrp_len = len(self.multi_df.index) if self.grouping == 'condition' else len(self.conditions)
                 notgrp_idx = i if self.grouping == 'condition' else self.y_order[eval(str(c))]
-                self.boxes(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
+                if box:
+                    self.boxes(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
+                if swarm:
+                    self.swarms(cond, c, ax, grp_idx, notgrp_idx, notgrp_len)
 
         # have to wait until all boxes are plot, to ensure alignment of annotation
         if self.stats_df is not None:
@@ -338,7 +361,7 @@ class StateConditionBoxplot():
                    loc='upper left',
                    bbox_to_anchor=(1, 1))
     
-    def plot_groups(self, groups, normed=True):
+    def plot_groups(self, groups, normed=True, **kwargs):
         # TODO: should not depend on level(1) but rather last level, also if it is the only level
         # groups the multidf along axis 0, level 1 (states) and plots the resulting groups
         # group values are summed up
@@ -354,10 +377,11 @@ class StateConditionBoxplot():
         multiindex = pd.MultiIndex.from_tuples(list(zip(preindex.index, preindex.values)))
         self.multi_df.index = multiindex
         self.multi_df = self.multi_df.groupby(level=0).sum()
-
+        self.multi_df = self.multi_df.dropna()
+        
         if normed:
             self.multi_df = self.multi_df/self.multi_df.sum(axis=0)
-        fig = self.plot()
+        fig = self.plot(**kwargs)
         return fig
         
     
@@ -461,3 +485,24 @@ class EthogramPlotter():
         fig.suptitle(f'Ethogram of {y_column}',fontsize=16)
         return fig
 
+def swarm_from_bins(y, bin_step=30, x_base=0, bin_size=None, swarm_range=.45):
+    sort_idx = np.argsort(y)
+    y = y.iloc[sort_idx]
+    get_org_idx = np.argsort(sort_idx)
+    
+    hist, bins = np.histogram(y, bin_step)
+    if bin_size is None:
+        bin_size = (np.max(y)-np.min(y))/bin_step
+    x = np.zeros_like(y)
+    for i in range(len(bins)-1):
+        y_in_bin = np.bitwise_and(y >= bins[i], y <= bins[i+1])
+        y_i = y[y_in_bin]
+        if len(y_i) > 1:
+            cumsum_steps = np.cumsum(np.repeat(bin_size, len(y_i)))
+            x_i = cumsum_steps-(cumsum_steps[-1]/2)-bin_size/2
+            x_i = x_i[np.argsort(abs(x_i))]
+            x_i = x_i * swarm_range
+            x[y_in_bin] = x_i
+    x = x[get_org_idx]+x_base
+    y = y.iloc[get_org_idx]
+    return x
