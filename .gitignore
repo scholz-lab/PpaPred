@@ -1,3 +1,5 @@
+# venv
+.venv
 
 # ignore all logs
 *.log

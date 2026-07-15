@@ -1,0 +1,24 @@
+[project]
+name = "ppapred"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+dependencies = [
+    "hyperopt==0.2.7",
+    "imbalanced-learn==0.9.1",
+    "ipykernel>=6.31.0",
+    "joblib==1.2.0",
+    "matplotlib==3.6.2",
+    "nbconvert>=7.17.0",
+    "networkx==2.8.8",
+    "numba==0.57.0",
+    "numpy==1.23.5",
+    "pandas==1.5.0",
+    "pywavelets==1.3.0",
+    "pyyaml==6.0",
+    "scikit-learn==1.2.0",
+    "scipy==1.10.1",
+    "tqdm==4.65.0",
+    "umap-learn==0.5.3",
+    "xgboost==1.7.4",
+]
