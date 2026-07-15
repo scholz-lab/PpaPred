@@ -1,6 +1,6 @@
 settings:
-    'model': '/gpfs/soma_fs/scratch/src/boeger/model/PpaPred_35727184_model.pickle'
-    'ASpath': '/gpfs/soma_fs/scratch/src/boeger/model/PpaPred_35727184_preprocessing.pickle'
+    'model': 'model/PpaPred_35727184_model.pickle'
+    'ASpath': 'model/PpaPred_35727184_preprocessing.pickle'
     'fbfill': 30
     'fps': 30
     'skip_already': False
