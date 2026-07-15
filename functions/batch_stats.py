@@ -48,12 +48,13 @@ class BatchCondition():
     """
     Creates and loads batch json files. That contain releveant information for state predictions.
     """
-    def __init__(self, inpath, data_str, jsonpath=None, overwrite=False, append =False, suffix = 'batch'):
+    def __init__(self, inpath, data_str, jsonpath=None, overwrite=False, append =False, subfolders=False, suffix = 'batch'):
         self.inpath = inpath
         self.data_str = data_str
         self.jsonpath = jsonpath
         self.overwrite = overwrite
         self.append = append
+        self.subfolders = subfolders
         self.suffix = suffix
         self.json_path()
         
@@ -77,7 +78,7 @@ class BatchCondition():
                 batch_ids = batch.keys()
         
         # get files
-        loc_all, loc_summ, loc_trans = io.walkdir_filter(self.inpath, self.data_str, specific_patterns=['prediction.json', 'summary.csv','transitions.csv'])
+        loc_all, loc_summ, loc_trans = io.walkdir_filter(self.inpath, self.data_str, specific_patterns=['prediction.json', 'summary.csv','transitions.csv'], subfolders=self.subfolders)
         
         # pop files from loc_all if already in batch file
         for id in batch_ids:
