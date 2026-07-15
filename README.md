@@ -6,9 +6,18 @@
 with ssh: `git clone git@github.com:scholz-lab/PpaPred.git`
 
 2. Install environmnet:<br>
-`conda env create -f requirements.txt -n PpaPred` or `conda env create -f environment.yml`
+`conda env create -f requirements.txt -n PpaPred` or `conda env create -f environment.yml`  
+alternatively, using uv:  
+`uv venv` and `uv sync` to install using the pyproject.toml file  
+    >**_NOTE:_**
+    If you are using uv, you have to change the way the environment is activated in step 4 of this manual and in Predict.sh to `source .venv/bin/activate`
 
-3. Edit config and config_batch files, to specifiy path to your PharaGlow files, etc.
+3. Edit config and config_batch files, to specifiy path to your PharaGlow files, etc.  
+    >**Important parameters in config.yml**  
+    >**fps**: frames per second of recording  
+    **pgfile_pattern**: a string that lets the script find the files from PharaglowAnalysis, with "rate", "area" and "negskew_clean"  
+    **centerline_pattern**: if the PharaglowAnalysis file does not contain the centerline, put here the string that lets the script find the file containg the centerline in µm  
+    
 
 4. predict files from your terminal...<br>
     a. either individually without slurm:<br>
